@@ -1,0 +1,8 @@
+# Create virtual environment (not within github repo)
+python3 -m venv env --system-site-packages
+
+# Source virtual environment
+source env/bin/activate
+
+# Build ROS packages
+python3 -m colcon build

@@ -5,6 +5,10 @@
 /install/
 /log/
 
+# Ignore virtual environment
+/env/
+env/
+
 # Colcon-specific
 colcon-core.log
 *.db

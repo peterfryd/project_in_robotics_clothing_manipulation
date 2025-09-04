@@ -1,0 +1,24 @@
+# Core ML libraries
+torch>=2.1.0
+torchvision>=0.16.0
+
+# Hugging Face for OpenVLA
+transformers>=4.40.0
+
+# Image processing
+Pillow>=10.0.0
+opencv-python>=4.8.0
+numpy<2  # Downgrade to ensure compatibility with scipy/sklearn
+
+# Utility to satisfy generate-parameter-library-py dependency
+typeguard>=2.17.0
+
+# Needed for some packages at build time
+Cython>=0.30.0
+
+# Optional but recommended for scientific packages
+scipy>=1.10.0
+scikit-learn>=1.3.0
+
+# YAML parser for ROS launch scripts
+PyYAML>=6.0
