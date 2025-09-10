@@ -55,7 +55,18 @@ Install requirements:
 pip install -r requirements.txt
 ``` 
 
-### 6) Build the src code
+### 6) Install ur_rtde c++ library and setup robot for remote control
+Install ur_rtde:
+``` bash
+sudo add-apt-repository ppa:sdurobotics/ur-rtde
+sudo apt-get update
+sudo apt install librtde librtde-dev
+```
+
+On the teach pendent setup a static IP and enable the robot for remote control
+
+
+### 7) Build the src code
 
 in the project root run:
 ``` bash
