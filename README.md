@@ -3,17 +3,13 @@
 ## Robot password
 eit2025
 
-
-
 ## Setup
 Follow these steps in order to get started with manipulating clothes!
 
 ### 1) Install ROS2
-
 Follow the guide for installing ROS2 Jazzy here [ROS2 Jazzy Install](https://docs.ros.org/en/jazzy/Installation/Alternatives/Ubuntu-Development-Setup.html).
 
 ### 2) Clone and setup submodules
-
 Run the git clone command:
 
 ``` bash
@@ -26,25 +22,22 @@ git submodule update --init --recursive
 ```
 
 ### 3) Source the ROS2 Functionality and Workspace
-
 Run the following commands for sourcing the ROS workspace
 
 ``` bash
 source /opt/ros/jazzy/setup.bash && source project_in_robotics_clothing_manipulation/install/local_setup.sh
-
 ``` 
 
-### 4) Install ROS RealSense library
+### 4) Install ROS RealSense SDK library
+Follow the "Installation on Ubuntu" guide from this link: https://github.com/IntelRealSense/realsense-ros
 
-These steps are taken from [ROS2 Intel Realsense](https://github.com/IntelRealSense/realsense-ros).
+I specifically did:
+* Step 2 - Option 2: Install librealsense2
+* step 3 - Option 2: Install from source
 
-Run the following command:
-``` bash
-sudo apt install ros-jazzy-librealsense2*
-``` 
+OBS: You might need to update you kernel headers (atleast i did using linux kernel 6.14), or change kernel version.
 
 ### 5) Setup python virtual environment and download python dependencies
-
 Create a virtual environment parallel to this project folder:
 ``` bash
 python3 -m venv env --system-site-packages
@@ -59,15 +52,21 @@ Install requirements:
 pip install -r requirements.txt
 ``` 
 
-### 6) Build the src code
+### 6) Install ur_rtde c++ library and setup robot for remote control
+Install ur_rtde:
+``` bash
+sudo add-apt-repository ppa:sdurobotics/ur-rtde
+sudo apt-get update
+sudo apt install librtde librtde-dev
+```
 
+### 7) Build the src code
 in the project root run:
 ``` bash
 python3 -m colcon build
 ``` 
 
 ### 8) Connect to the Robot
-
 Connect your pc and the robot with an ethernet cable. Turn on the robot's control tablet ad go under settings -> system -> network. Set the network to have a static address:
 - IP Address: 192.168.1.100
 - Subnet Mask: 255.255.255.0
@@ -82,10 +81,9 @@ You can check that the communication is working by running:
 ping 192.168.100.1
 ``` 
 
-Set the robot to "External Control".
+Set the robot to "External Control" on the ur tablet.
 
 ## Run the programme
-
 Run the following commands:
 
 Start the robot controller:
