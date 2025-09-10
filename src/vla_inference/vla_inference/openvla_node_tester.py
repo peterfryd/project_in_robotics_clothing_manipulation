@@ -29,10 +29,10 @@ class OpenVLANode(Node):
         self.processor = AutoProcessor.from_pretrained("openvla/openvla-7b", trust_remote_code=True)
         self.model = AutoModelForVision2Seq.from_pretrained(
             "openvla/openvla-7b",
-            device_map="auto",
-            load_in_8bit=True,
+            device_map="auto",       # maps model to CPU automatically
             trust_remote_code=True
         )
+
         self.get_logger().info("Model loaded.")
 
         # Example textual prompt for UR5e robot
