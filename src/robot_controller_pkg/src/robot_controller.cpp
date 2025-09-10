@@ -6,7 +6,7 @@
 class RobotController : public rclcpp::Node
 {
 public:
-  RobotController() : Node("robot_controller")
+  RobotController() : Node("robot_controller"), rtde_c("192.168.1.100"), rtde_r("192.168.1.100")
   {
     robot_cmd_subscriber = this->create_subscription<robot_controller_pkg::msg::RobotCmd>(
         "robot_cmd", 10,
@@ -37,8 +37,8 @@ private:
   }
 
   rclcpp::Subscription<robot_controller_pkg::msg::RobotCmd>::SharedPtr robot_cmd_subscriber;
-  ur_rtde::RTDEControlInterface rtde_c("192.168.0.100");
-  ur_rtde::RTDEReceiveInterface rtde_r("192.168.0.100");
+  ur_rtde::RTDEControlInterface rtde_c;
+  ur_rtde::RTDEReceiveInterface rtde_r;
 };
 
 int main(int argc, char *argv[])
