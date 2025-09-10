@@ -1,5 +1,8 @@
 # project_in_robotics_clothing_manipulation
 
+## Robot password
+eit2025
+
 
 
 ## Setup
@@ -61,4 +64,45 @@ pip install -r requirements.txt
 in the project root run:
 ``` bash
 python3 -m colcon build
+``` 
+
+### 8) Connect to the Robot
+
+Connect your pc and the robot with an ethernet cable. Turn on the robot's control tablet ad go under settings -> system -> network. Set the network to have a static address:
+- IP Address: 192.168.1.100
+- Subnet Mask: 255.255.255.0
+
+On your pc, go to advanced network configuration, edit the Ethernet-network and go to IPV4-Settings.
+- Add the IP Address: 192.68.1.77
+- Add the netmask: 255.255.255.0
+
+You can check that the communication is working by running:
+
+``` bash
+ping 192.168.100.1
+``` 
+
+Set the robot to "External Control".
+
+## Run the programme
+
+Run the following commands:
+
+Start the robot controller:
+``` bash
+ros2 run robot_controller_pkg robot_controller 
+``` 
+Publish a desired comman to the robot:
+``` bash
+ros2 topic pub /robot_cmd robot_controller_pkg/msg/RobotCmd "{delta_position: [0.05, 0.05, 0.05], delta_orientation: [0.1, 0.1, 0.1], delta_gripper: 0.5}"
+``` 
+
+And for the camera nodes:
+``` bash
+ros2 run realsense2_camera realsense2_camera_node
+``` 
+
+For using the VLA-model:
+``` bash
+ros2 run vla_inference openvla_node_tester
 ``` 
