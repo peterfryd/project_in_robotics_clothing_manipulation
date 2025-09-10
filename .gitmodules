@@ -1,0 +1,3 @@
+[submodule "rdt"]
+	path = rdt
+	url = https://github.com/thu-ml/RoboticsDiffusionTransformer.git
