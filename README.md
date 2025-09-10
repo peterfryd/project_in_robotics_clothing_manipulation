@@ -28,17 +28,16 @@ Run the following commands for sourcing the ROS workspace
 
 ``` bash
 source /opt/ros/jazzy/setup.bash && source project_in_robotics_clothing_manipulation/install/local_setup.sh
-
 ``` 
 
-### 4) Install ROS RealSense library
+### 4) Install ROS RealSense SDK library
+Follow the "Installation on Ubuntu" guide from this link: https://github.com/IntelRealSense/realsense-ros
 
-These steps are taken from [ROS2 Intel Realsense](https://github.com/IntelRealSense/realsense-ros).
+I specifically did:
+* Step 2 - Option 2: Install librealsense2
+* step 3 - Option 2: Install from source
 
-Run the following command:
-``` bash
-sudo apt install ros-jazzy-librealsense2*
-``` 
+OBS: You might need to update you kernel headers (atleast i did using linux kernel 6.14), or change kernel version.
 
 ### 5) Setup python virtual environment and download python dependencies
 
