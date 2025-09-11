@@ -30,8 +30,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'openvla_node = vla_inference.openvla_node:main',
-            'openvla_node_tester = vla_inference.openvla_node_tester:main'
+            'vla_inference = vla_inference.vla_inference:main',
         ],
     },
 )

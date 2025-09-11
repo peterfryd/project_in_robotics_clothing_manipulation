@@ -83,6 +83,24 @@ ping 192.168.100.1
 
 Set the robot to "External Control" on the ur tablet.
 
+### 9) Setup Ucloud for model inference using Python Flask
+Setup Ucloud to have a personal SSH key, and add it to the Ucloud job once it starts.
+
+Clone the repository into a folder within UCloud.
+``` bash
+git clone https://github.com/peterfryd/project_in_robotics_clothing_manipulation.git
+``` 
+
+And checkout the branch for the Ucloud programmes.
+``` bash
+git checkout ucloud
+``` 
+
+Run the setup-script:
+``` bash
+. setup.sh
+``` 
+
 ## Run the programme
 Run the following commands:
 
@@ -100,7 +118,17 @@ And for the camera nodes:
 ros2 run realsense2_camera realsense2_camera_node
 ``` 
 
-For using the VLA-model:
+In Ucloud run the flask server:
 ``` bash
-ros2 run vla_inference openvla_node_tester
+python3 web_server.py
+``` 
+
+On the local machine allow SSH-Tunneling:
+``` bash
+ssh -L 5000:localhost:80 ucloud@ssh.cloud.sdu.dk -p 2215
+``` 
+
+Run the node for sending an image to the flask server for inference:
+``` bash
+ros2 run vla_inference vla_inference <path_to_img (jpg)>
 ``` 
