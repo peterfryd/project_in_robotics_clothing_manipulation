@@ -1,0 +1,1 @@
+pip install -r vla_inference/requirements.txt
