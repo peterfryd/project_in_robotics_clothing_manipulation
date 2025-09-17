@@ -33,7 +33,10 @@ private:
       pose[5] + msg->delta_orientation[2]
     };
 
-    rtde_c.moveL(new_pose, 0.25, 0.25);
+    //rtde_c.moveL(new_pose, 0.25, 0.25);
+    RCLCPP_INFO(this->get_logger(), "Trying to open the gripper");
+    rtde_c.sendCustomScript("twofg_grip_ext(71,20,10)");
+    RCLCPP_INFO(this->get_logger(), "Done with the gripper");
   }
 
   rclcpp::Subscription<robot_controller_pkg::msg::RobotCmd>::SharedPtr robot_cmd_subscriber;
