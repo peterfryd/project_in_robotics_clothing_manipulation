@@ -16,15 +16,15 @@ class VlaInference(Node):
 
         # For now, just run once on startup
         self.get_logger().info("Reading image and sending to server...")
-        self.send_image(image_path)
+        self.send_image(image_path, "pick up the orange ball")
 
-    def send_image(self, image_path):
+    def send_image(self, image_path, prompt : str):
         img = cv2.imread(image_path)
         if img is None:
             self.get_logger().error(f"Could not read image: {image_path}")
             return
 
-        payload = {"data": img.flatten().tolist()}
+        payload = {"data": img.flatten().tolist(), "prompt": prompt}
 
         try:
             res = requests.post("http://localhost:5000/", json=payload)
