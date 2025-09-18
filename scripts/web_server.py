@@ -74,6 +74,7 @@ def infer():
     img = Image.fromarray(img)
 
     action = inference(image=img, prompt=prompt)
+    print(type(action))
 
     return jsonify({"result": action})
 
