@@ -68,12 +68,12 @@ def infer():
     if data is None or prompt is None:
         return jsonify({"error": "No input data provided"}), 400
     
-    Image_arr = np.array(data, dtype=np.uint8)
-    np.reshape(Image_arr, (224,224,3))
-    im = Image.fromarray(Image_arr)
-    im.save("my_image.jpg")
+    img = np.array(data, dtype=np.uint8)
+    img = np.reshape(img, (224,224,3))
+    img = img[:, :, ::-1]
+    img = Image.fromarray(img)
 
-    action = inference(image=im, prompt=prompt)
+    action = inference(image=img, prompt=prompt)
 
     return jsonify({"result": action})
 
