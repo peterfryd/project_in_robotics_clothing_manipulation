@@ -75,7 +75,7 @@ def infer():
 
     action = inference(image=img, prompt=prompt)
 
-    return jsonify({"result": action.toList()})
+    return jsonify({"result": action.tolist()})
 
 
 if __name__ == "__main__":
