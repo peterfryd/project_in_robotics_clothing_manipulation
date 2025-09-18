@@ -1,9 +1,0 @@
-flask
-opencv-python
-Cython
-Pillow
-torch
-torchvision
-transformers
-typeguard
-setuptools

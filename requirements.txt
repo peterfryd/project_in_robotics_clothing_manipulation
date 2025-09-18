@@ -1,0 +1,14 @@
+flask
+
+opencv-python
+Cython
+Pillow
+
+torch
+torchvision
+transformers
+accelerate
+-r https://raw.githubusercontent.com/openvla/openvla/main/requirements-min.txt
+
+typeguard
+setuptools

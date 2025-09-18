@@ -1,4 +1,3 @@
 #!/usr/bin/env bash
 
-pip install -r https://raw.githubusercontent.com/openvla/openvla/main/requirements-min.txt
-pip install accelerate
+sudo apt install -y libgl1 libglib2.0-0
