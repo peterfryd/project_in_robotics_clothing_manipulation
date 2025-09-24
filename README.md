@@ -60,6 +60,11 @@ sudo apt-get update
 sudo apt install librtde librtde-dev
 ```
 
+Install modbus:
+``` bash
+sudo apt install libmodbus-dev
+```
+
 ### 7) Build the src code
 in the project root run:
 ``` bash
