@@ -1,0 +1,8 @@
+# Request
+float64[3] delta_position
+float64[3] delta_orientation
+float64    delta_gripper
+---
+# Response
+bool success
+string message
