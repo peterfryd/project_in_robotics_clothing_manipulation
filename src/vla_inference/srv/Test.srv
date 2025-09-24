@@ -1,4 +1,0 @@
-string prompt
-sensor_msgs/Image image
----
-bool success
