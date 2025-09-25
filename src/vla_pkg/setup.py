@@ -1,6 +1,6 @@
 from setuptools import setup
 
-package_name = 'vla_inference'
+package_name = 'vla_pkg'
 
 setup(
     name=package_name,
@@ -10,7 +10,6 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/srv', ['srv/ServiceSendToModel.srv']),
     ],
     install_requires=[
         'setuptools',
@@ -31,7 +30,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'vla_inference = vla_inference.vla_inference:main',
+            'inference = vla_pkg.inference:main',
+            'train = vla_pkg.train:main',
         ],
     },
 )

@@ -5,4 +5,3 @@ float64    delta_gripper
 ---
 # Response
 bool success
-string message
