@@ -63,15 +63,26 @@ def inference(image:Image, prompt:str) -> list:
 
 @app.route("/", methods=["POST"])
 def infer():
+    # Convert data from json
     data = request.json.get("data", None)
     prompt = request.json.get("prompt", None)
+
+    # Check data is present
     if data is None or prompt is None:
         return jsonify({"error": "No input data provided"}), 400
+    if data is None or prompt is None:
+        return jsonify({"error": "No input image provided"}), 400
+    if data is None:
+        return jsonify({"error": "No input prompt provided"}), 400
     
+    # Convert image data to type Image
     img = np.array(data, dtype=np.uint8)
+    if img.size != 224*224*3:
+         return jsonify({"error": "Input image wrong size. Should be 150528 (224*224*3)."}), 400
     img = np.reshape(img, (224,224,3))
     img = img[:, :, ::-1]
     img = Image.fromarray(img)
+    img.save("img.png","PNG")
 
     action = inference(image=img, prompt=prompt)
 
