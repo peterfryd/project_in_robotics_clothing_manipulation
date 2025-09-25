@@ -47,7 +47,7 @@ private:
                 pose[5] + request->delta_orientation[2]};
 
             // Move robot
-            movel(pose_tans(get_actual_tcp_pose(),delta_pose), 0.25, 0.25);    # Transform to TCP-space
+            movel(pose_tans(get_actual_tcp_pose(),delta_pose), 0.25, 0.25);    // Transform to TCP-space
             // rtde_c.moveL(new_pose, 0.25, 0.25);
             RCLCPP_INFO(this->get_logger(), "Robot moved to new position");
 
