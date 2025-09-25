@@ -38,8 +38,17 @@ private:
                 pose[4] + request->delta_orientation[1],
                 pose[5] + request->delta_orientation[2]};
 
+            std::vector<double> delta_pose = {
+                pose[0] + request->delta_position[0],
+                pose[1] + request->delta_position[1],
+                pose[2] + request->delta_position[2],
+                pose[3] + request->delta_orientation[0],
+                pose[4] + request->delta_orientation[1],
+                pose[5] + request->delta_orientation[2]};
+
             // Move robot
-            rtde_c.moveL(new_pose, 0.25, 0.25);
+            movel(pose_tans(get_actual_tcp_pose(),delta_pose), 0.25, 0.25);    # Transform to TCP-space
+            // rtde_c.moveL(new_pose, 0.25, 0.25);
             RCLCPP_INFO(this->get_logger(), "Robot moved to new position");
 
             response->success = true;
