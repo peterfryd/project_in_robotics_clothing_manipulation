@@ -53,6 +53,7 @@ def inference(image:Image, prompt:str) -> list:
     print("Inference...")
 
     inputs = processor(prompt, image).to("cpu")
+    # inputs = processor(prompt, image).to("cpu", dtype=torch.bfloat16)
     action = model.predict_action(**inputs, unnorm_key="bridge_orig", do_sample=False)
     end = time.time()
 
@@ -64,19 +65,21 @@ def inference(image:Image, prompt:str) -> list:
 @app.route("/", methods=["POST"])
 def infer():
     # Convert data from json
-    data = request.json.get("data", None)
-    prompt = request.json.get("prompt", None)
+    img_data = request.json.get("data", None)
+    prompt_raw = request.json.get("prompt", None)
 
     # Check data is present
-    if data is None or prompt is None:
+    if img_data is None or prompt_raw is None:
         return jsonify({"error": "No input data provided"}), 400
-    if data is None or prompt is None:
+    if img_data is None or prompt_raw is None:
         return jsonify({"error": "No input image provided"}), 400
-    if data is None:
+    if img_data is None:
         return jsonify({"error": "No input prompt provided"}), 400
     
+    prompt = f"In: What action should the robot take to {prompt_raw.lower()}?\nOut:"
+    
     # Convert image data to type Image
-    img = np.array(data, dtype=np.uint8)
+    img = np.array(img_data, dtype=np.uint8)
     if img.size != 224*224*3:
          return jsonify({"error": "Input image wrong size. Should be 150528 (224*224*3)."}), 400
     img = np.reshape(img, (224,224,3))
