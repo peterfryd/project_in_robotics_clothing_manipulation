@@ -1,11 +1,10 @@
 from vla_inference.srv import ServiceSendToModel
-from cv_bridge import CvBridge
-
 import rclpy
 from rclpy.node import Node
 
 import requests
 import cv2
+from cv_bridge import CvBridge
 
 
 class MinimalService(Node):
