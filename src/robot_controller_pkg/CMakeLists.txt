@@ -10,7 +10,6 @@ find_library(RTDE_LIB rtde)
 find_path(RTDE_INCLUDE_DIR ur_rtde/rtde.h)
 
 find_package(PkgConfig REQUIRED)
-include_directories(${MODBUS_INCLUDE_DIRS})
 
 # Arm controller
 add_executable(arm_controller src/arm_controller.cpp)
