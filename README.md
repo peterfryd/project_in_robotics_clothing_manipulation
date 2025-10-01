@@ -125,7 +125,7 @@ ros2 run realsense2_camera realsense2_camera_node
 
 In Ucloud run the flask server:
 ``` bash
-python3 web_server.py
+python3 ucloud/web_server.py
 ``` 
 
 On the local machine allow SSH-Tunneling:
