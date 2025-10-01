@@ -2,8 +2,6 @@
 #include "custom_interfaces_pkg/srv/robot_cmd.hpp"
 #include <ur_rtde/rtde_control_interface.h>
 #include <ur_rtde/rtde_receive_interface.h>
-#include <modbus/modbus.h>
-#include <stdexcept>
 #include <vector>
 #include <string>
 #include <Eigen/Dense>
@@ -11,11 +9,13 @@
 #include <cmath>
 
 // Convert rotation vector (axis-angle) to rotation matrix
-Eigen::Matrix3d rotVecToRotMat(const Eigen::Vector3d& rvec) {
+Eigen::Matrix3d rotVecToRotMat(const Eigen::Vector3d &rvec)
+{
     double theta = rvec.norm();
 
     Eigen::Matrix3d R = Eigen::Matrix3d::Identity();
-    if (theta < 1e-12) {
+    if (theta < 1e-12)
+    {
         // Zero rotation -> identity
         return R;
     }
@@ -24,22 +24,21 @@ Eigen::Matrix3d rotVecToRotMat(const Eigen::Vector3d& rvec) {
 
     // Skew-symmetric matrix of axis
     Eigen::Matrix3d K;
-    K <<       0, -axis.z(),  axis.y(),
-          axis.z(),        0, -axis.x(),
-         -axis.y(),  axis.x(),        0;
+    K << 0, -axis.z(), axis.y(),
+        axis.z(), 0, -axis.x(),
+        -axis.y(), axis.x(), 0;
 
     R = Eigen::Matrix3d::Identity() + std::sin(theta) * K + (1 - std::cos(theta)) * K * K;
 
     return R;
 }
 
-
-
 class ArmController : public rclcpp::Node
 {
 public:
     ArmController()
-        : Node("arm_controller"), rtde_c("192.168.1.100"), rtde_r("192.168.1.100"){
+        : Node("arm_controller"), rtde_c("192.168.1.100"), rtde_r("192.168.1.100")
+    {
 
         arm_srv = this->create_service<custom_interfaces_pkg::srv::RobotCmd>(
             "arm_srv",
@@ -48,7 +47,6 @@ public:
     }
 
 private:
-
     void handle_robot_cmd(
         const std::shared_ptr<custom_interfaces_pkg::srv::RobotCmd::Request> request,
         std::shared_ptr<custom_interfaces_pkg::srv::RobotCmd::Response> response)
@@ -56,36 +54,53 @@ private:
         RCLCPP_INFO(this->get_logger(), "Service request received");
         try
         {
+            RCLCPP_INFO(this->get_logger(), "Start of try catch");
+            // Get current TCP pose
             std::vector<double> pose = rtde_r.getActualTCPPose();
-            std::vector<double> gripper_delta;
-            for (double& del: request->delta_position){
-                gripper_delta.push_back(del);
-            }
-            
-            Eigen::Vector3d position; // meters
-            Eigen::Vector3d rotVec; // radians
+            Eigen::Vector3d position(pose[0], pose[1], pose[2]);
+            Eigen::Vector3d rotVec(pose[3], pose[4], pose[5]);
 
-            position << pose[0], pose[1], pose[2];
-            rotVec << pose[3], pose[4], pose[5];
+            // Convert current rotation vector to rotation matrix
+            Eigen::Matrix3d R_current = rotVecToRotMat(rotVec);
 
-            Eigen::Matrix3d R = rotVecToRotMat(rotVec);
-            
-            Eigen::Vector3d delta;
-            delta << gripper_delta[0], gripper_delta[1], gripper_delta[2];
+            // Translation delta in TCP frame
+            Eigen::Vector3d delta_position(request->delta_position[0],
+                                           request->delta_position[1],
+                                           request->delta_position[2]);
 
-            // Express delta in base frame
-            Eigen::Vector3d delta_in_base = R * delta;
+            // Transform translation delta to base frame
+            Eigen::Vector3d delta_in_base = R_current * delta_position;
 
-            // New TCP position in base frame
+            // New TCP position
             Eigen::Vector3d new_position = position + delta_in_base;
 
-            std::vector<double> new_position_vec;
-            for (double& del: new_position){
-                new_position_vec.push_back(del);
-            }
-            
-            rtde_c.moveL(new_position_vec, 0.25, 0.25);
-            
+            // Rotation delta
+            Eigen::Vector3d delta_orientation(request->delta_orientation[0],
+                                              request->delta_orientation[1],
+                                              request->delta_orientation[2]);
+
+            // Convert delta rotation to matrix
+            Eigen::Matrix3d R_delta = rotVecToRotMat(delta_orientation);
+
+            // New rotation matrix (combine current and delta rotations)
+            Eigen::Matrix3d R_new = R_current * R_delta;
+
+            // Convert back to rotation vector
+            Eigen::AngleAxisd angleAxis(R_new);
+            Eigen::Vector3d new_rotVec = angleAxis.axis() * angleAxis.angle();
+
+            // Build full 6-DOF TCP pose
+            std::vector<double> new_pose = {
+                new_position[0], new_position[1], new_position[2],
+                new_rotVec[0], new_rotVec[1], new_rotVec[2]};
+
+            // Debug print
+            RCLCPP_INFO(this->get_logger(), "Moving to: [%f, %f, %f, %f, %f, %f]",
+                        new_pose[0], new_pose[1], new_pose[2],
+                        new_pose[3], new_pose[4], new_pose[5]);
+
+            // Move the robot
+            rtde_c.moveL(new_pose, 0.25, 0.25);
             RCLCPP_INFO(this->get_logger(), "Robot moved to new position");
 
             response->success = true;

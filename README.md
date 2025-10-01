@@ -97,7 +97,7 @@ ros2 run robot_controller_pkg arm_controller
 ``` 
 (Optionally) Command the robot:
 ``` bash
-ros2 service call /robot_cmd_service robot_controller_pkg/srv/RobotCmd "{delta_position: [0.05, 0.05, 0.05], delta_orientation: [0.1, 0.1, 0.1], delta_gripper: 0.5}"
+ros2 service call /arm_srv custom_interfaces_pkg/srv/RobotCmd "{delta_position: [0.0, 0.0, 0.0], delta_orientation: [0.0, 0.0, 0.0], delta_gripper: 0}"
 ``` 
 
 And for the camera nodes:
