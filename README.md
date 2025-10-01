@@ -37,22 +37,7 @@ I specifically did:
 
 OBS: You might need to update you kernel headers (atleast i did using linux kernel 6.14), or change kernel version.
 
-### 5) Setup python virtual environment and download python dependencies
-Create a virtual environment parallel to this project folder:
-``` bash
-python3 -m venv env --system-site-packages
-``` 
-Source the environment:
-``` bash
-source env/bin/activate
-``` 
-
-Install requirements:
-``` bash
-pip install -r requirements.txt
-``` 
-
-### 6) Install ur_rtde c++ library and setup robot for remote control
+### 5) Install ur_rtde c++ library and setup robot for remote control
 Install ur_rtde:
 ``` bash
 sudo add-apt-repository ppa:sdurobotics/ur-rtde
@@ -60,18 +45,13 @@ sudo apt-get update
 sudo apt install librtde librtde-dev
 ```
 
-Install modbus:
-``` bash
-sudo apt install libmodbus-dev
-```
-
-### 7) Build the src code
+### 6) Build the src code
 in the project root run:
 ``` bash
 python3 -m colcon build
 ``` 
 
-### 8) Connect to the Robot
+### 7) Connect to the Robot
 Connect your pc and the robot with an ethernet cable. Turn on the robot's control tablet ad go under settings -> system -> network. Set the network to have a static address:
 - IP Address: 192.168.1.100
 - Subnet Mask: 255.255.255.0
@@ -88,39 +68,46 @@ ping 192.168.100.1
 
 Set the robot to "External Control" on the ur tablet.
 
-### 9) Setup Ucloud for model inference using Python Flask
+### 8) Setup Ucloud for model inference using Python Flask
 Setup Ucloud to have a personal SSH key, and add it to the Ucloud job once it starts.
 
 Clone the repository into a folder within UCloud.
 ``` bash
 git clone https://github.com/peterfryd/project_in_robotics_clothing_manipulation.git
 ``` 
-
-And checkout the branch for the Ucloud programmes.
+Create a virtual environment:
 ``` bash
-git checkout ucloud
+python3 -m venv env
 ``` 
-
-Run the setup-script:
+Source the environment:
 ``` bash
-. setup.sh
+source env/bin/activate
+``` 
+Download the dependencies
+``` bash
+pip install -r requirements.txt
 ``` 
 
 ## Run the programme
 Run the following commands:
 
-Start the robot controller:
+Start the robot arm controller:
 ``` bash
-ros2 run robot_controller_pkg robot_controller 
+ros2 run robot_controller_pkg arm_controller
 ``` 
-Publish a desired comman to the robot:
+(Optionally) Command the robot:
 ``` bash
-ros2 topic pub /robot_cmd robot_controller_pkg/msg/RobotCmd "{delta_position: [0.05, 0.05, 0.05], delta_orientation: [0.1, 0.1, 0.1], delta_gripper: 0.5}"
+ros2 service call /robot_cmd_service robot_controller_pkg/srv/RobotCmd "{delta_position: [0.05, 0.05, 0.05], delta_orientation: [0.1, 0.1, 0.1], delta_gripper: 0.5}"
 ``` 
 
 And for the camera nodes:
 ``` bash
 ros2 run realsense2_camera realsense2_camera_node
+``` 
+
+And for Inference with VLA:
+``` bash
+ros2 run vla_pkg inference
 ``` 
 
 In Ucloud run the flask server:
@@ -130,10 +117,10 @@ python3 ucloud/web_server.py
 
 On the local machine allow SSH-Tunneling:
 ``` bash
-ssh -L 5000:localhost:80 ucloud@ssh.cloud.sdu.dk -p 2215
+ssh -L 5000:localhost:80 ucloud@ssh.cloud.sdu.dk -p <ID 4 NUMBERS>
 ``` 
 
-Run the node for sending an image to the flask server for inference:
+Run the main programme:
 ``` bash
-ros2 run vla_inference vla_inference <path_to_img (jpg)>
+ros2 run system_integrator_pkg main "<command>"
 ``` 
