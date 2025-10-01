@@ -5,12 +5,11 @@ import time
 from transformers import AutoModelForVision2Seq, AutoProcessor
 from PIL import Image
 import torch
-import time
-
 
 
 model = None
 processor = None
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 app = Flask(__name__)
 
@@ -18,46 +17,33 @@ def init_model():
     global model, processor
 
     # Load Processor & VLA
-    print("Initialize model...")
+    print("Initialize model on", device, "...")
     start = time.time()
+
     processor = AutoProcessor.from_pretrained("openvla/openvla-7b", trust_remote_code=True)
-    vla = AutoModelForVision2Seq.from_pretrained(
+    model = AutoModelForVision2Seq.from_pretrained(
         "openvla/openvla-7b",
-        # attn_implementation="flash_attention_2",  # [Optional] Requires `flash_attn`
-        torch_dtype=torch.float32,
-        #low_cpu_mem_usage=True,
+        torch_dtype=torch.float16 if device == "cuda" else torch.float32,
         trust_remote_code=True
-    )
+    ).to(device)
+
     end = time.time()
-    print("Initialize model time:", end-start)
+    print("Model loaded in", end - start, "seconds.")
 
 
-    # Quantize model
-    print("Quantize model...")
-    start = time.time()
-    quantized_vla = torch.quantization.quantize_dynamic(
-        vla, {torch.nn.Linear}, dtype=torch.qint8
-    )
-    quantized_vla.to("cpu")
-    end = time.time()
-    print("Quantize model time:", end-start)
-
-    
-    model = quantized_vla
-
-
-
-def inference(image:Image, prompt:str) -> list:
+def inference(image: Image, prompt: str) -> list:
     # Predict Action (7-DoF; un-normalize for BridgeData V2)
     start = time.time()
-    print("Inference...")
+    print("Running inference on", device, "...")
 
-    inputs = processor(prompt, image).to("cpu")
-    # inputs = processor(prompt, image).to("cpu", dtype=torch.bfloat16)
-    action = model.predict_action(**inputs, unnorm_key="bridge_orig", do_sample=False)
+    # Move inputs to GPU
+    inputs = processor(prompt, image).to(device)
+
+    with torch.no_grad():
+        action = model.predict_action(**inputs, unnorm_key="bridge_orig", do_sample=False)
+
     end = time.time()
-
-    print("Predict action time:", end-start)
+    print("Predict action time:", end - start)
 
     return action
 
@@ -68,24 +54,19 @@ def infer():
     img_data = request.json.get("data", None)
     prompt_raw = request.json.get("prompt", None)
 
-    # Check data is present
     if img_data is None or prompt_raw is None:
         return jsonify({"error": "No input data provided"}), 400
-    if img_data is None or prompt_raw is None:
-        return jsonify({"error": "No input image provided"}), 400
-    if img_data is None:
-        return jsonify({"error": "No input prompt provided"}), 400
     
     prompt = f"In: What action should the robot take to {prompt_raw.lower()}?\nOut:"
     
     # Convert image data to type Image
     img = np.array(img_data, dtype=np.uint8)
-    if img.size != 224*224*3:
-         return jsonify({"error": "Input image wrong size. Should be 150528 (224*224*3)."}), 400
-    img = np.reshape(img, (224,224,3))
-    img = img[:, :, ::-1]
+    if img.size != 224 * 224 * 3:
+        return jsonify({"error": "Input image wrong size. Should be 150528 (224*224*3)."}), 400
+    
+    img = np.reshape(img, (224, 224, 3))
+    img = img[:, :, ::-1]  # BGR → RGB
     img = Image.fromarray(img)
-    img.save("img.png","PNG")
 
     action = inference(image=img, prompt=prompt)
 
@@ -94,7 +75,4 @@ def infer():
 
 if __name__ == "__main__":
     init_model()
-
-    # Run on port 80, all interfaces
     app.run(host="0.0.0.0", port=80)
-
