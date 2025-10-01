@@ -1,15 +1,23 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>vla_inference</name>
+  <name>vla_pkg</name>
   <version>0.0.0</version>
   <description>TODO: Package description</description>
   <maintainer email="frydensberg.peter@gmail.com">peter</maintainer>
   <license>TODO: License declaration</license>
 
   <depend>rclpy</depend>
+  <depend>example_interfaces</depend>
+  <depend>custom_interfaces_pkg</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
+  <depend>rosidl_default_runtime</depend>
+  <depend>rosidl_default_generators</depend>
+
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_python</buildtool_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

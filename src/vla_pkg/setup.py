@@ -1,6 +1,6 @@
 from setuptools import setup
 
-package_name = 'vla_inference'
+package_name = 'vla_pkg'
 
 setup(
     name=package_name,
@@ -30,7 +30,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'vla_inference = vla_inference.vla_inference:main',
+            'inference = vla_pkg.inference:main',
+            'train = vla_pkg.train:main',
         ],
     },
 )
