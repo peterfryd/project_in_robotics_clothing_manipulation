@@ -24,7 +24,7 @@ public:
 
     // Create clients
     inference_srv = this->create_client<custom_interfaces_pkg::srv::Inference>(
-      "service_send_to_model");
+      "inference_srv");
 
     arm_srv = this->create_client<custom_interfaces_pkg::srv::RobotCmd>(
       "arm_srv");
