@@ -89,8 +89,8 @@ pip install -r requirements.txt
 ``` 
 
 ## Run the programme
-Run the following commands:
 
+### Option 1 (individual nodes)
 Start the robot arm controller:
 ``` bash
 ros2 run robot_controller_pkg arm_controller
@@ -110,6 +110,15 @@ And for Inference with VLA:
 ros2 run vla_pkg inference
 ``` 
 
+### Option 2 (Launch file)
+
+Alternative option (use launch file to start realsense, arm controller and vla inference):
+``` bash
+ros2 launch system_integrator_pkg main_system.launch.py
+``` 
+
+### Ucloud programme
+
 In Ucloud run the flask server:
 ``` bash
 python3 ucloud/web_server.py
@@ -119,6 +128,9 @@ On the local machine allow SSH-Tunneling:
 ``` bash
 ssh -L 5000:localhost:80 ucloud@ssh.cloud.sdu.dk -p <ID 4 NUMBERS>
 ``` 
+
+
+### Main Programme
 
 Run the main programme:
 ``` bash

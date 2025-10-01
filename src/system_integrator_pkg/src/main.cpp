@@ -88,7 +88,7 @@ public:
     if (robot_result->success) {
       RCLCPP_INFO(this->get_logger(), "Robot executed command successfully!");
     } else {
-      RCLCPP_WARN(this->get_logger(), "Robot failed to execute command.");
+      RCLCPP_ERROR(this->get_logger(), "Robot failed to execute command.");
     }
   }
   }
