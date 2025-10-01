@@ -5,6 +5,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(custom_interfaces_pkg REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 find_library(RTDE_LIB rtde)
 find_path(RTDE_INCLUDE_DIR ur_rtde/rtde.h)
@@ -19,7 +20,7 @@ ament_target_dependencies(arm_controller
   custom_interfaces_pkg
 )
 target_include_directories(arm_controller PRIVATE ${RTDE_INCLUDE_DIR})
-target_link_libraries(arm_controller ${RTDE_LIB} ${MODBUS_LIBRARIES})
+target_link_libraries(arm_controller ${RTDE_LIB} ${MODBUS_LIBRARIES} Eigen3::Eigen)
 
 # Gripper controller
 add_executable(gripper_controller src/gripper_controller.cpp)
