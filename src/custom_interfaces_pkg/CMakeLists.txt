@@ -17,6 +17,7 @@ find_package(sensor_msgs REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/RobotCmd.srv"
   "srv/Inference.srv"
+  "srv/FoldPointToPoint.srv"
   DEPENDENCIES sensor_msgs
 )
 # uncomment the following section in order to fill in

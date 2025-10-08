@@ -32,10 +32,18 @@ ament_target_dependencies(gripper_controller
 target_include_directories(gripper_controller PRIVATE ${RTDE_INCLUDE_DIR})
 target_link_libraries(gripper_controller ${RTDE_LIB} ${MODBUS_LIBRARIES})
 
+add_executable(fold_point_to_point src/fold_point_to_point.cpp)
+ament_target_dependencies(fold_point_to_point
+  rclcpp
+  sensor_msgs
+  custom_interfaces_pkg
+)
+
 # Install executables
 install(TARGETS
   arm_controller
   gripper_controller
+  fold_point_to_point
   DESTINATION lib/${PROJECT_NAME}
 )
 
