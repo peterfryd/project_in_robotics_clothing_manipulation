@@ -51,22 +51,17 @@ class JazzyNode(Node):
 
     def handle_image_to_base(self, request, response):
         if self.latest_depth_image is None or None in [self.fx, self.fy, self.cx, self.cy]:
-            self.get_logger().warn("Depth image or camera info not ready!")
+            self.get_logger().info("Depth image or camera info not ready!")
             response.baseframe_coordinates = [float('nan')] * 3
             return response
 
         u, v = request.imageframe_coordinates
 
-        # Convert ROS image to NumPy array
         depth_image = self.bridge.imgmsg_to_cv2(self.latest_depth_image, desired_encoding='passthrough')
-        depth_value = (depth_image[int(v), int(u)]) / 1000 # Z in mm (check your RealSense depth scaling)
+        Z = (depth_image[int(v), int(u)]) / 1000
 
-        self.get_logger().info(f"Depth value at ({u:.1f}, {v:.1f}): {depth_value:.5f}")
-
-        # Projection math
-        X = (u - self.cx) * depth_value / self.fx
-        Y = (v - self.cy) * depth_value / self.fy
-        Z = depth_value
+        X = (u - self.cx) * Z / self.fx
+        Y = (v - self.cy) * Z / self.fy
 
         response.baseframe_coordinates = [X, Y, Z]
         self.get_logger().info(f"Projected ({u}, {v}) -> [{X:.3f}, {Y:.3f}, {Z:.3f}]")
