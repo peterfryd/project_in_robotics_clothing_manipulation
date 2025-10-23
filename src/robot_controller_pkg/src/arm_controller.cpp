@@ -101,7 +101,7 @@ private:
             rtde_c.moveL(new_pose, 0.25, 0.25);
             RCLCPP_INFO(this->get_logger(), "Robot moved to position [%f, %f, %f, %f, %f, %f]",
                         new_pose[0], new_pose[1], new_pose[2],
-                        new_pose[3], new_pose[4], new_pose[5])
+                        new_pose[3], new_pose[4], new_pose[5]);
 
             response->success = true;
         }
