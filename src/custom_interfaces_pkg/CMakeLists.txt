@@ -18,6 +18,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/RobotCmd.srv"
   "srv/Inference.srv"
   "srv/ImageToBase.srv"
+  "srv/GetPickAndPlacePoint.srv"
   DEPENDENCIES sensor_msgs
 )
 # uncomment the following section in order to fill in
