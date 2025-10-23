@@ -2,76 +2,79 @@
 
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image, CameraInfo
-from cv_bridge import CvBridge
 import numpy as np
 from custom_interfaces_pkg.srv import ImageToBase
 
-class JazzyNode(Node):
+class ImageToBaseNode(Node):
     def __init__(self):
-        super().__init__('jazzy_node')
+        super().__init__('image_to_base_node')
 
-        # Latest depth image and camera intrinsics
-        self.latest_depth_image = None
-        self.fx = self.fy = self.cx = self.cy = None
+        # Camera height to table
+        self.camera_height = 1.0
 
-        self.bridge = CvBridge()
-
-        # Subscribers
-        self.depth_sub = self.create_subscription(
-            Image,
-            '/camera/camera/depth/image_rect_raw',
-            self.depth_callback,
-            10
-        )
-        self.camera_info_sub = self.create_subscription(
-            CameraInfo,
-            '/camera/camera/depth/camera_info',
-            self.camera_info_callback,
-            10
-        )
+        # Camera intrinsics
+        self.fx = 891.01611328125
+        self.fy = 891.01611328125
+        self.cx = 642.7546997070312
+        self.cy = 367.76971435546875
+        
+        # tcp to base transform
+        self.R_tcp_to_base = self.rotation_matrix_from_euler_xyz(np.pi/2, 0.0, -1.992)
+        self.t_tcp_to_base = np.array([-0.473, -0.230, 0.530])
+        # joint pose = [33.37, -77.23, 37.00, 220.04, -147.22, -180.21]
+        
+        # cam to tcp transform (mounting offset)
+        self.R_cam_to_tcp = self.rotation_matrix_from_euler_xyz(np.pi/2, 0.0, 0.0)
+        self.t_cam_to_tcp = np.array([-0.045, -0.06, -0.01]) 
 
         # Service
         self.srv = self.create_service(
             ImageToBase,
-            'image_to_base',
+            '/image_to_base_srv',
             self.handle_image_to_base
         )
 
-        self.get_logger().info("JazzyNode ready: listening to RealSense and providing ImageToBase service.")
-
-    def depth_callback(self, msg: Image):
-        self.latest_depth_image = msg
-
-    def camera_info_callback(self, msg: CameraInfo):
-        self.fx = msg.k[0]
-        self.fy = msg.k[4]
-        self.cx = msg.k[2]
-        self.cy = msg.k[5]
+        self.get_logger().info("image_to_base node ready and providing /image_to_base_srv service.")
 
     def handle_image_to_base(self, request, response):
-        if self.latest_depth_image is None or None in [self.fx, self.fy, self.cx, self.cy]:
-            self.get_logger().info("Depth image or camera info not ready!")
-            response.baseframe_coordinates = [float('nan')] * 3
-            return response
-
         u, v = request.imageframe_coordinates
 
-        depth_image = self.bridge.imgmsg_to_cv2(self.latest_depth_image, desired_encoding='passthrough')
-        Z = (depth_image[int(v), int(u)]) / 1000
+        Z_cam = self.camera_height
+        Z_cam = 2.047
+        u, v = 560, 350
+        X_cam = (u - self.cx) * Z_cam / self.fx
+        Y_cam = (v - self.cy) * Z_cam / self.fy
 
-        X = (u - self.cx) * Z / self.fx
-        Y = (v - self.cy) * Z / self.fy
+        P_cam = np.array([X_cam, Y_cam, Z_cam])
+        
+        # Transformation from camera to TCP
+        P_tcp = self.R_cam_to_tcp @ P_cam + self.t_cam_to_tcp
 
-        response.baseframe_coordinates = [X, Y, Z]
-        self.get_logger().info(f"Projected ({u}, {v}) -> [{X:.3f}, {Y:.3f}, {Z:.3f}]")
+        # Transformation from TCP to base
+        P_base = self.R_tcp_to_base @ P_tcp + self.t_tcp_to_base
+
+        response.baseframe_coordinates = P_base.tolist()
+
+        self.get_logger().info(f"Projected ({u}, {v}) -> [{P_base[0]:.3f}, {P_base[1]:.3f}, {P_base[2]:.3f}]")
 
         return response
+
+    def rotation_matrix_from_euler_xyz(self, roll, pitch, yaw):
+        Rx = np.array([[1, 0, 0],
+                    [0, np.cos(roll), -np.sin(roll)],
+                    [0, np.sin(roll), np.cos(roll)]])
+        Ry = np.array([[np.cos(pitch), 0, np.sin(pitch)],
+                    [0, 1, 0],
+                    [-np.sin(pitch), 0, np.cos(pitch)]])
+        Rz = np.array([[np.cos(yaw), -np.sin(yaw), 0],
+                    [np.sin(yaw), np.cos(yaw), 0],
+                    [0, 0, 1]])
+        return Rz @ Ry @ Rx
 
 
 def main(args=None):
     rclpy.init(args=args)
-    node = JazzyNode()
+    node = ImageToBaseNode()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
