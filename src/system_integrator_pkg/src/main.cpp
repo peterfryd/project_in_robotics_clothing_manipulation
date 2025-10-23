@@ -24,7 +24,7 @@ public:
 
     // Create clients
     inference_srv = this->create_client<custom_interfaces_pkg::srv::Inference>(
-      "service_send_to_model");
+      "inference_srv");
 
     arm_srv = this->create_client<custom_interfaces_pkg::srv::RobotCmd>(
       "arm_srv");
@@ -88,7 +88,7 @@ public:
     if (robot_result->success) {
       RCLCPP_INFO(this->get_logger(), "Robot executed command successfully!");
     } else {
-      RCLCPP_WARN(this->get_logger(), "Robot failed to execute command.");
+      RCLCPP_ERROR(this->get_logger(), "Robot failed to execute command.");
     }
   }
   }

@@ -44,7 +44,9 @@ public:
             "arm_srv",
             std::bind(&ArmController::handle_robot_cmd, this,
                       std::placeholders::_1, std::placeholders::_2));
+        RCLCPP_INFO(this->get_logger(), "Arm controller service ready");
     }
+    
 
 private:
     void handle_robot_cmd(
@@ -54,7 +56,6 @@ private:
         RCLCPP_INFO(this->get_logger(), "Service request received");
         try
         {
-            RCLCPP_INFO(this->get_logger(), "Start of try catch");
             // Get current TCP pose
             std::vector<double> pose = rtde_r.getActualTCPPose();
             Eigen::Vector3d position(pose[0], pose[1], pose[2]);
@@ -95,22 +96,20 @@ private:
                 new_rotVec[0], new_rotVec[1], new_rotVec[2]};
 
             // Debug print
-            RCLCPP_INFO(this->get_logger(), "Moving to: [%f, %f, %f, %f, %f, %f]",
-                        new_pose[0], new_pose[1], new_pose[2],
-                        new_pose[3], new_pose[4], new_pose[5]);
 
             // Move the robot
             rtde_c.moveL(new_pose, 0.25, 0.25);
-            RCLCPP_INFO(this->get_logger(), "Robot moved to new position");
+            RCLCPP_INFO(this->get_logger(), "Robot moved to position [%f, %f, %f, %f, %f, %f]",
+                        new_pose[0], new_pose[1], new_pose[2],
+                        new_pose[3], new_pose[4], new_pose[5]);
 
             response->success = true;
         }
         catch (const std::exception &e)
         {
-            RCLCPP_INFO(this->get_logger(), "Error executing command: %s", e.what());
+            RCLCPP_ERROR(this->get_logger(), "Error executing command: %s", e.what());
             response->success = false;
         }
-        RCLCPP_INFO(this->get_logger(), "Service response sent");
     }
 
     rclcpp::Service<custom_interfaces_pkg::srv::RobotCmd>::SharedPtr arm_srv;
