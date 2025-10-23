@@ -261,14 +261,14 @@ private:
 
         std::stringstream command;
         command << ""
-                << moveL(home, fixed_orientation, 0.25, 1.2, 0) 
+                << moveL(picture_position, picture_orientation, 0.25, 1.2, 0) 
                 << openGripper()
-                << moveL(from_point, fixed_orientation, 0.25, 1.2, 0)
+                << moveL(from_point, grip_orientation, 0.25, 1.2, 0)
                 << closeGripper()
-                << moveL(midpoint, fixed_orientation, 0.25, 1.2, 0.10)
-                << moveL(to_point, fixed_orientation, 0.25, 1.2, 0)
+                << moveL(midpoint, grip_orientation, 0.25, 1.2, 0.10)
+                << moveL(to_point, grip_orientation, 0.25, 1.2, 0)
                 << openGripper()
-                << moveL(home, fixed_orientation, 0.25, 1.2, 0)
+                << moveL(picture_position, picture_orientation, 0.25, 1.2, 0)
 
                 << "socket_open(\"192.168.1.104\", 50000, socket_name=\"socket_10\")\n"
                 << "socket_send_string(to_str(get_actual_tcp_pose()), socket_name=\"socket_10\")\n"
