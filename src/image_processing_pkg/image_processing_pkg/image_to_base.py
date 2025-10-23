@@ -19,13 +19,13 @@ class ImageToBaseNode(Node):
         self.cy = 367.76971435546875
         
         # tcp to base transform
-        self.R_tcp_to_base = self.rotation_matrix_from_euler_xyz(np.pi/2, 0.0, -1.992)
-        self.t_tcp_to_base = np.array([-0.473, -0.230, 0.530])
+        self.R_tcp_to_base = self.rotation_matrix_from_euler_xyz(-np.pi/2, 0.0, 1.992)
+        self.t_tcp_to_base = np.array([0.473, 0.230, -0.530])
         # joint pose = [33.37, -77.23, 37.00, 220.04, -147.22, -180.21]
         
         # cam to tcp transform (mounting offset)
-        self.R_cam_to_tcp = self.rotation_matrix_from_euler_xyz(np.pi/2, 0.0, 0.0)
-        self.t_cam_to_tcp = np.array([-0.045, -0.06, -0.01]) 
+        self.R_cam_to_tcp = self.rotation_matrix_from_euler_xyz(-np.pi/2, 0.0, 0.0)
+        self.t_cam_to_tcp = np.array([0.045, 0.06, 0.01])
 
         # Service
         self.srv = self.create_service(
