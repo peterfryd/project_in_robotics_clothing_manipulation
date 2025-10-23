@@ -1,0 +1,6 @@
+# Request
+int32 step_number
+---
+# Response
+int32[2] image_pick_point
+int32[2] image_place_point
