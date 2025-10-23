@@ -1,6 +1,6 @@
+from tkinter import image_names
 import cv2
 import numpy as np
-from segmentation import fit_color_model, apply_color_model
 
 def sift_track_points(img1, img2, points, ratio_thresh=0.7):
     """
@@ -57,88 +57,79 @@ def sift_track_points(img1, img2, points, ratio_thresh=0.7):
 
     return tracked_points
 
-# --- Load images ---
-image_names = ["step1", "step2", "step3", "step4", "step5", "step6"]
+def segment_foreground(image, background, visualize=False):
+    """
+    Segment the foreground of an image
+    """
+    
+    hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    h,s,v = cv2.split(hsv_image)
+
+    white_mask = cv2.inRange(background, (255, 255, 255), (255, 255, 255))
+    s[white_mask == 255] = 0
+    
+    blur = cv2.GaussianBlur(s, (11,11), 0)
+
+    _, thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    thresh = cv2.bitwise_not(thresh)
+
+    kernel = np.ones((11,11), np.uint8)
+    clean = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=2)
+    clean = cv2.bitwise_not(clean)
+
+    contours, _ = cv2.findContours(clean, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    central_contour = None
+    
+    if contours:
+        h_img, w_img = image.shape[:2]
+        image_center = np.array([w_img / 2, h_img / 2])
+
+        min_dist = float('inf')
+        central_contour = None
+
+        for cnt in contours:
+            M = cv2.moments(cnt)
+            if M["m00"] != 0:
+                cx = int(M["m10"] / M["m00"])
+                cy = int(M["m01"] / M["m00"])
+                centroid = np.array([cx, cy])
+                dist = np.linalg.norm(centroid - image_center)
+                if dist < min_dist:
+                    min_dist = dist
+                    central_contour = cnt
+
+    forergound_mask = np.zeros(image.shape[:2], dtype=np.uint8)
+
+    cv2.drawContours(forergound_mask, [central_contour], -1, 255, -1)
+    if visualize:
+        image_copy = image.copy()
+        cv2.drawContours(image_copy, [central_contour], -1, (0, 255, 0), 10)
+
+        cv2.imshow("Foreground Mask with Central image", forergound_mask)
+        cv2.imshow("Clothing Contour Overlaid", image_copy)
+        cv2.waitKey(0)
+
+    return forergound_mask
+
+# --- Load images ---z
+#image_names = ["1_Color", "2_Color", "3_Color", "4_Color", "5_Color", "6_Color"]
+image_names = ["1", "2", "3", "4", "5", "6"]
+background = cv2.imread('images/background.png')
 images = []
-#background = "background"
-annotation_image = "annotated.jpeg"
 steps = []
 instructions = []
 
 for i in range(len(image_names)):
-    image = cv2.imread(f'images/steps/{image_names[i]}.jpeg')
-    image = cv2.resize(image, (0,0), fx=0.5, fy=0.5)
+    image = cv2.imread(f'images/{image_names[i]}.png')
+    #image = cv2.resize(image, (0,0), fx=0.5, fy=0.5)
     images.append(image)
-    
-#background = cv2.imread(f'images/steps/{background}.jpeg')
-#background = cv2.resize(background, (0,0), fx=0.5, fy=0.5)
 
-height, width, channels = images[0].shape
-img_center = np.array([width // 2, height // 2])
-
-mean, cov, threshold = fit_color_model(annotation_image, threshold_percentile=95)
 
 # Convert to grayscale
 for image in images:
-    #bg_gray = cv2.cvtColor(background, cv2.COLOR_BGR2GRAY)
-    #img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-    #bg_blur = cv2.GaussianBlur(bg_gray, (5,5), 0)
-    # Compute absolute difference
-    #diff = cv2.absdiff(bg_gray, img_gray)
-
-    # Threshold to get foreground mask
-    fg_mask = apply_color_model(image_rgb=image, mean=mean, cov=cov, threshold=threshold, method="mahalanobis", visualize=False)
-    #_, fg_mask = cv2.threshold(diff, 33, 255, cv2.THRESH_BINARY)
+    forergound_mask = segment_foreground(image, background, visualize=True)
     
-    # Morphological cleanup
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (50,50))
-    fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_OPEN, kernel)
-    #fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_DILATE, kernel)
-
-    # Find contours
-    contours, _ = cv2.findContours(fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    # min_dist = float('inf')
-    # central_contour = None
-
-    # for cnt in contours:
-    #     M = cv2.moments(cnt)
-    #     if M['m00'] == 0:
-    #         continue  # avoid division by zero
-    #     cx = int(M['m10'] / M['m00'])
-    #     cy = int(M['m01'] / M['m00'])
-    #     centroid = np.array([cx, cy])
-        
-    #     dist = np.linalg.norm(centroid - img_center)
-    #     if dist < min_dist:
-    #         min_dist = dist
-    #         central_contour = cnt
-    # Largest contour
-    largest_contour = max(contours, key=cv2.contourArea)
-    #hull = cv2.convexHull(largest_contour)
-    empty = np.zeros_like(fg_mask)
-    # Create mask of same size as image
-    #mask = np.zeros_like(fg_mask, dtype=np.uint8)
-    # Create a larger kernel to connect disconnected parts (like arms)
-    
-    # Fill convex hull
-    #cv2.drawContours(mask_closed, [hull], -1, 255, thickness=cv2.FILLED)
-    # Create mask and foreground
-    #largest_mask = np.zeros_like(fg_mask)
-    cv2.drawContours(empty, [largest_contour], -1, 255, thickness=-1)
-    foreground = cv2.bitwise_and(image, image, mask=empty)
-    
-    # centroid_mask = np.zeros_like(fg_mask)
-    # cv2.drawContours(centroid_mask, [central_contour], -1, 255, thickness=cv2.FILLED)
-    # foreground = cv2.bitwise_and(image, image, mask=centroid_mask)
-    
-    steps.append((foreground, fg_mask))
-    
-    cv2.imshow('Foreground Mask', fg_mask)
-    cv2.imshow('Largest Contour', foreground)
-    cv2.waitKey(0)
-
 # STEP 1
 
 fg1, cc1 = steps[0]
