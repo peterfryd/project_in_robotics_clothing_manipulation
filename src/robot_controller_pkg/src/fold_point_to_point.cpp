@@ -307,8 +307,10 @@ private:
     const int PORT = 30020;
 
     const double midpoint_extra_height = 0.3;
-    std::vector<double> fixed_orientation = {3.1415, 0, 0};
-    std::vector<double> home = {-0.4, -0.0, 0.3};
+    
+    std::vector<double> picture_orientation = {3.1415/2, 0.0, -1.992};
+    std::vector<double> picture_position = {-0.473, -0.230, 0.530};
+    std::vector<double> grip_orientation = {3.1415, 0, 0};
 };
 
 int main(int argc, char *argv[])
@@ -318,3 +320,8 @@ int main(int argc, char *argv[])
     rclcpp::shutdown();
     return 0;
 }
+
+/*
+Service call example:
+ros2 service call /fold_point_to_point_srv custom_interfaces_pkg/srv/FoldPointToPoint "{from_point: [0.0, 0.0, 0.0], tp_point: [0.0, 0.0, 0.0]}"
+*/
