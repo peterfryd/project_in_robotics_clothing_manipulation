@@ -19,6 +19,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/Inference.srv"
   "srv/FoldPointToPoint.srv"
   "srv/ImageToBase.srv"
+  "srv/GetPickAndPlacePoint.srv"
   DEPENDENCIES sensor_msgs
 )
 # uncomment the following section in order to fill in

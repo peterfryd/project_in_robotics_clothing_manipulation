@@ -129,7 +129,7 @@ for i in range(len(image_names)):
 # Convert to grayscale
 for image in images:
     forergound_mask = segment_foreground(image, background, visualize=True)
-    
+
 # STEP 1
 
 fg1, cc1 = steps[0]
