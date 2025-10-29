@@ -9,6 +9,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 find_package(custom_interfaces_pkg REQUIRED)
 # Executable
 add_executable(main src/main.cpp)
@@ -16,6 +17,7 @@ add_executable(main src/main.cpp)
 ament_target_dependencies(main
   rclcpp
   sensor_msgs
+  std_srvs
   custom_interfaces_pkg
 )
 

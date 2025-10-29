@@ -4,6 +4,7 @@ project(robot_controller_pkg)
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(std_srvs REQUIRED) 
 find_package(custom_interfaces_pkg REQUIRED)
 find_package(Eigen3 REQUIRED)
 
@@ -33,6 +34,7 @@ ament_target_dependencies(fold_point_to_point
   rclcpp
   sensor_msgs
   custom_interfaces_pkg
+  std_srvs
 )
 
 # Install executables

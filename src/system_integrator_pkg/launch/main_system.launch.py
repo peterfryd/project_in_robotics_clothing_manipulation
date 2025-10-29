@@ -11,14 +11,20 @@ def generate_launch_description():
         ),
         Node(
             package='robot_controller_pkg',
-            executable='arm_controller',
-            name='arm_controller',
+            executable='fold_point_to_point',
+            name='fold_point_to_point',
             output='screen'
         ),
         Node(
-            package='vla_pkg',
-            executable='inference',
-            name='vla_inference',
+            package='image_processing_pkg',
+            executable='image_to_base',
+            name='image_to_base',
             output='screen'
         ),
+        Node(
+            package='image_processing_pkg',
+            executable='get_pick_and_place_point',
+            name='get_pick_and_place_point',
+            output='screen'
+        )
     ])

@@ -2,141 +2,218 @@
 #include <mutex>
 #include <string>
 #include <chrono>
+#include <thread>
 
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/image.hpp"
+#include "std_srvs/srv/empty.hpp"
 
-#include "custom_interfaces_pkg/srv/inference.hpp"
-#include "custom_interfaces_pkg/srv/robot_cmd.hpp"
+#include "custom_interfaces_pkg/srv/get_pick_and_place_point.hpp"
+#include "custom_interfaces_pkg/srv/image_to_base.hpp"
+#include "custom_interfaces_pkg/srv/fold_point_to_point.hpp"
 
 using namespace std::chrono_literals;
 
 class SystemIntegration : public rclcpp::Node
 {
 public:
-  SystemIntegration(const std::string & prompt)
-  : Node("main"), prompt_(prompt)
-  {
-    // Subscribe to camera
-    img_sub = this->create_subscription<sensor_msgs::msg::Image>(
-      "/camera/camera/color/image_raw", 10,
-      std::bind(&SystemIntegration::image_callback, this, std::placeholders::_1));
-
-    // Create clients
-    inference_srv = this->create_client<custom_interfaces_pkg::srv::Inference>(
-      "inference_srv");
-
-    arm_srv = this->create_client<custom_interfaces_pkg::srv::RobotCmd>(
-      "arm_srv");
-
-    // Wait for services
-    while (!inference_srv->wait_for_service(1s)) {
-      RCLCPP_INFO(this->get_logger(), "Waiting for service_send_to_model...");
-    }
-    while (!arm_srv->wait_for_service(1s)) {
-      RCLCPP_INFO(this->get_logger(), "Waiting for robot_cmd_service...");
-    }
-  }
-
-  void run()
-  {
-    while(true){
-
-    sensor_msgs::msg::Image::SharedPtr img;
+    SystemIntegration(const std::string &prompt)
+        : Node("main"), prompt_(prompt)
     {
-      std::lock_guard<std::mutex> lock(image_mutex_);
-      if (!latest_image_) {
-        RCLCPP_ERROR(this->get_logger(), "No image received yet.");
-        return;
-      }
-      img = latest_image_;
+        get_pick_and_place_srv = this->create_client<custom_interfaces_pkg::srv::GetPickAndPlacePoint>(
+            "/get_pick_and_place_point_srv"
+        );
+
+        image_to_base_srv = this->create_client<custom_interfaces_pkg::srv::ImageToBase>(
+            "/image_to_base_srv"
+        );
+
+        fold_point_to_point_srv = this->create_client<custom_interfaces_pkg::srv::FoldPointToPoint>(
+            "/fold_point_to_point_srv"
+        );
+
+        fold_point_to_point_home_srv = this->create_client<std_srvs::srv::Empty>(
+            "/fold_point_to_point_home_srv"
+        );
+
+        // Wait for services
+        while (!get_pick_and_place_srv->wait_for_service(1s))
+        {
+            RCLCPP_INFO(this->get_logger(), "Waiting for get_pick_and_place_point_srv...");
+        }
+        while (!image_to_base_srv->wait_for_service(1s))
+        {
+            RCLCPP_INFO(this->get_logger(), "Waiting for image_to_base_srv...");
+        }
+        while (!fold_point_to_point_srv->wait_for_service(1s))
+        {
+            RCLCPP_INFO(this->get_logger(), "Waiting for fold_point_to_point_srv...");
+        }
     }
 
-    // --- Call the AI service ---
-    auto ai_req = std::make_shared<custom_interfaces_pkg::srv::Inference::Request>();
-    ai_req->prompt = prompt_;
-    ai_req->image = *img;
-
-    auto ai_future = inference_srv->async_send_request(ai_req);
-
-    if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), ai_future)
-        != rclcpp::FutureReturnCode::SUCCESS)
+    int run()
     {
-      RCLCPP_ERROR(this->get_logger(), "Failed to call service_send_to_model");
-      return;
+        RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Running!");
+
+        auto fold_point_to_point_home_req = std::make_shared<custom_interfaces_pkg::srv::GetPickAndPlacePoint::Request>();
+        auto fold_point_to_point_home_future = get_pick_and_place_srv->async_send_request(fold_point_to_point_home_req);
+
+        if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), fold_point_to_point_home_future)
+            != rclcpp::FutureReturnCode::SUCCESS)
+        {
+            RCLCPP_ERROR(this->get_logger(), "Failed to call /fold_point_to_point_home_srv");
+            return 11;
+        }
+
+
+        if (prompt_ != ""){
+            int step = std::stoi(prompt_);
+
+            RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "before sleep!");
+            std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+            RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "after sleep!");
+
+
+            auto get_pick_and_place_req = std::make_shared<custom_interfaces_pkg::srv::GetPickAndPlacePoint::Request>();
+            get_pick_and_place_req->step_number = step;
+
+            auto get_pick_and_place_future = get_pick_and_place_srv->async_send_request(get_pick_and_place_req);
+
+            if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), get_pick_and_place_future)
+                != rclcpp::FutureReturnCode::SUCCESS)
+            {
+                RCLCPP_ERROR(this->get_logger(), "Failed to call /get_pick_and_place_point_srv");
+                return 2;
+            }
+
+            auto get_pick_and_place_point_result = get_pick_and_place_future.get();
+
+            std::array<int, 2> pick_point = get_pick_and_place_point_result->image_pick_point;
+            std::array<int, 2> place_point = get_pick_and_place_point_result->image_place_point;
+
+            RCLCPP_INFO(this->get_logger(), "Got response from /get_pick_and_place_srv service: pick_point = {%i, %i} place_point = {%i, %i}", pick_point[0], pick_point[1], place_point[0], place_point[1]);
+
+            // Check valid return
+            if (pick_point[0] == -1 || pick_point[1] == -1 || place_point[0] == -1 || place_point[1] == -1){
+                RCLCPP_ERROR(this->get_logger(), "Not valid returns!");
+                return 3;
+            }
+
+            
+            // Convert pick point
+            auto image_to_base_req = std::make_shared<custom_interfaces_pkg::srv::ImageToBase::Request>();
+            image_to_base_req->imageframe_coordinates = pick_point;
+
+            RCLCPP_INFO(this->get_logger(), "1");
+
+            auto image_to_base_future_pick = image_to_base_srv->async_send_request(image_to_base_req);
+            RCLCPP_INFO(this->get_logger(), "2");
+            if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), image_to_base_future_pick)
+                != rclcpp::FutureReturnCode::SUCCESS)
+            {
+                RCLCPP_ERROR(this->get_logger(), "Failed to call /get_pick_and_place_point_srv");
+                return 2;
+            }
+            RCLCPP_INFO(this->get_logger(), "3");
+
+            auto image_to_base_result_pick = image_to_base_future_pick.get();
+            std::array<double, 3>  pick_point_baseframe = image_to_base_result_pick->baseframe_coordinates;
+            pick_point_baseframe[2] = -0.0125;
+
+            RCLCPP_INFO(this->get_logger(), "Got response from /image_to_base service: pick_baseframe = {%f, %f, %f}", pick_point_baseframe[0], pick_point_baseframe[1], pick_point_baseframe[2]);
+
+
+            // Convert place point
+            auto image_to_base_req_place = std::make_shared<custom_interfaces_pkg::srv::ImageToBase::Request>();
+            image_to_base_req_place->imageframe_coordinates = place_point;
+
+            auto image_to_base_future_place = image_to_base_srv->async_send_request(image_to_base_req_place);
+
+            if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), image_to_base_future_place)
+                != rclcpp::FutureReturnCode::SUCCESS)
+            {
+                RCLCPP_ERROR(this->get_logger(), "Failed to call /get_pick_and_place_point_srv");
+                return 3;
+            }
+
+            auto image_to_base_result_place = image_to_base_future_place.get();
+            std::array<double, 3>  place_point_baseframe = image_to_base_result_place->baseframe_coordinates;
+            place_point_baseframe[2] = -0.0;
+
+            RCLCPP_INFO(this->get_logger(), "Got response from /image_to_base service: place_baseframe = {%f, %f, %f}", place_point_baseframe[0], place_point_baseframe[1], place_point_baseframe[2]);
+
+
+            // Fold point to point
+            auto fold_point_to_point_req = std::make_shared<custom_interfaces_pkg::srv::FoldPointToPoint::Request>();
+            fold_point_to_point_req->from_point = pick_point_baseframe;
+            fold_point_to_point_req->to_point = place_point_baseframe;
+
+            auto fold_point_to_point_future = fold_point_to_point_srv->async_send_request(fold_point_to_point_req);
+
+            if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), fold_point_to_point_future)
+                != rclcpp::FutureReturnCode::SUCCESS)
+            {
+                RCLCPP_ERROR(this->get_logger(), "Failed to call /fold_point_to_point_srv");
+                return 4;
+            }
+
+            auto fold_point_to_point_result = fold_point_to_point_future.get();
+            bool success = fold_point_to_point_result->succes;
+
+            RCLCPP_INFO(this->get_logger(), "Got response from /fold_point_to_point_srv service: succes = %i", success);
+
+            if (!success){
+                RCLCPP_ERROR(this->get_logger(), "/fold_point_to_point_srv return success=false");
+                return 5;
+            }
+        }
+
+        return 0;
     }
-
-    auto ai_result = ai_future.get();
-    RCLCPP_INFO(this->get_logger(), "Got response from AI service");
-
-    // --- Call the Robot service ---
-    auto robot_req = std::make_shared<custom_interfaces_pkg::srv::RobotCmd::Request>();
-    robot_req->delta_position = ai_result->delta_position;
-    robot_req->delta_orientation = ai_result->delta_orientation;
-    robot_req->delta_gripper = ai_result->delta_gripper;
-
-    auto robot_future = arm_srv->async_send_request(robot_req);
-
-    if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), robot_future)
-        != rclcpp::FutureReturnCode::SUCCESS)
-    {
-      RCLCPP_ERROR(this->get_logger(), "Failed to call robot_cmd_service");
-      return;
-    }
-
-    auto robot_result = robot_future.get();
-    if (robot_result->success) {
-      RCLCPP_INFO(this->get_logger(), "Robot executed command successfully!");
-    } else {
-      RCLCPP_ERROR(this->get_logger(), "Robot failed to execute command.");
-    }
-  }
-  }
 
 private:
-  void image_callback(const sensor_msgs::msg::Image::SharedPtr msg)
-  {
-    std::lock_guard<std::mutex> lock(image_mutex_);
-    latest_image_ = msg;
-  }
+    void image_callback(const sensor_msgs::msg::Image::SharedPtr msg)
+    {
+        std::lock_guard<std::mutex> lock(image_mutex_);
+        latest_image_ = msg;
+    }
 
-  std::string prompt_;
-  rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr img_sub;
-  rclcpp::Client<custom_interfaces_pkg::srv::Inference>::SharedPtr inference_srv;
-  rclcpp::Client<custom_interfaces_pkg::srv::RobotCmd>::SharedPtr arm_srv;
+    std::string prompt_;
 
-  sensor_msgs::msg::Image::SharedPtr latest_image_;
-  std::mutex image_mutex_;
+    rclcpp::Client<custom_interfaces_pkg::srv::GetPickAndPlacePoint>::SharedPtr get_pick_and_place_srv;
+    rclcpp::Client<custom_interfaces_pkg::srv::ImageToBase>::SharedPtr image_to_base_srv;
+    rclcpp::Client<custom_interfaces_pkg::srv::FoldPointToPoint>::SharedPtr fold_point_to_point_srv;
+    rclcpp::Client<std_srvs::srv::Empty>::SharedPtr fold_point_to_point_home_srv;
+    
+    // rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr img_sub;
+    // rclcpp::Client<custom_interfaces_pkg::srv::Inference>::SharedPtr inference_srv;
+    // rclcpp::Client<custom_interfaces_pkg::srv::RobotCmd>::SharedPtr arm_srv;
+
+    sensor_msgs::msg::Image::SharedPtr latest_image_;
+    std::mutex image_mutex_;
 };
 
-int main(int argc, char ** argv)
+int main(int argc, char **argv)
 {
-  rclcpp::init(argc, argv);
+    rclcpp::init(argc, argv);
 
-  if (argc < 2) {
-    RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Usage: run_programme_client <prompt>");
-    return 1;
-  }
+    if (argc > 2){
+        RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Too many arguments. Max 1 allowed!");
+        return 1;
+    }
 
-  std::string prompt = argv[1];
-  auto node = std::make_shared<SystemIntegration>(prompt);
+    std::string step_number = "";
+    if (argc > 1){
+        step_number = argv[1];
+    }
 
-  // Give some time to collect an image
-  RCLCPP_INFO(node->get_logger(), "Waiting for image...");
-  rclcpp::Rate rate(10);
-  while (rclcpp::ok() && !node->count_subscribers("/camera/camera/color/image_raw")) {
-    rclcpp::spin_some(node);
-    rate.sleep();
-  }
+    auto node = std::make_shared<SystemIntegration>(step_number);
 
-  // Spin a bit until we actually receive an image
-  for (int i = 0; i < 5 && rclcpp::ok(); ++i) {
-    rclcpp::spin_some(node);
-    rate.sleep();
-  }
+    // rclcpp::spin_some(node);
+    // rate.sleep();
 
-  node->run();
+    node->run();
 
-  rclcpp::shutdown();
-  return 0;
+    rclcpp::shutdown();
+    return 0;
 }

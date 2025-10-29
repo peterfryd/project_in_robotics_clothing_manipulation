@@ -1,5 +1,5 @@
 # Request
-float64[2] imageframe_coordinates
+int32[2] imageframe_coordinates
 ---
 # Response
 float64[3] baseframe_coordinates

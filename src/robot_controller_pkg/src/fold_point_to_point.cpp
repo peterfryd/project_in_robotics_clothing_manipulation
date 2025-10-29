@@ -12,6 +12,7 @@
 #include <sstream>
 #include <netinet/in.h>
 #include <cmath>
+#include "std_srvs/srv/empty.hpp"
 
 
 std::string moveL(std::vector<double> pos, std::vector<double> ori, double speed, double acc, double blend)
@@ -44,12 +45,12 @@ std::string setGripperWidth(double width)
 
 std::string openGripper()
 {
-    return setGripperWidth(71);
+    return setGripperWidth(37);
 }
 
 std::string closeGripper()
 {
-    return setGripperWidth(33);
+    return setGripperWidth(0);
 }
 
 float DegreesToRadians(float degrees) {
@@ -77,7 +78,14 @@ public:
             std::bind(&FoldPointToPoint::fold_point_to_point_srv_callback, this,
                       std::placeholders::_1, std::placeholders::_2));
 
-        RCLCPP_INFO(this->get_logger(), "Node started");
+        RCLCPP_INFO(this->get_logger(), "/fold_point_to_point_srv service started");
+        
+        fold_point_to_point_home = this->create_service<std_srvs::srv::Empty>(
+            "/fold_point_to_point_home_srv",
+            std::bind(&FoldPointToPoint::fold_point_to_point_home_srv_callback, this,
+                      std::placeholders::_1, std::placeholders::_2));
+
+        RCLCPP_INFO(this->get_logger(), "/fold_point_to_point_home_srv service started");
     }
 
 
@@ -282,20 +290,14 @@ private:
 
         std::stringstream command;
         command << ""
-                << moveJ(picture_joint_positions, 0.5, 1.2, 0) 
+                << moveL(picture_position, picture_orientation, 0.25, 1.2, 0) 
+                << openGripper()
                 << moveL(from_point, grip_orientation, 0.25, 1.2, 0)
+                << closeGripper()
+                << moveL(midpoint, grip_orientation, 0.25, 1.2, 0.10)
+                << moveL(to_point, grip_orientation, 0.25, 1.2, 0)
+                << openGripper()
                 << moveL(picture_position, picture_orientation, 0.25, 1.2, 0)
-                << moveL(from_point, grip_orientation, 0.25, 1.2, 0)
-                << moveJ(picture_joint_positions, 0.25, 1.2, 0)
-
-                // << moveL(picture_position, picture_orientation, 0.25, 1.2, 0) 
-                // << openGripper()
-                // << moveL(from_point, grip_orientation, 0.25, 1.2, 0)
-                // << closeGripper()
-                // << moveL(midpoint, grip_orientation, 0.25, 1.2, 0.10)
-                // << moveL(to_point, grip_orientation, 0.25, 1.2, 0)
-                // << openGripper()
-                // << moveL(picture_position, picture_orientation, 0.25, 1.2, 0)
 
                 // << "socket_open(\"192.168.1.104\", 50000, socket_name=\"socket_10\")\n"
                 // << "socket_send_string(to_str(get_actual_tcp_pose()), socket_name=\"socket_10\")\n"
@@ -328,8 +330,35 @@ private:
         close_socket(listen_sock);
     }
 
+    void fold_point_to_point_home_srv_callback(
+        const std::shared_ptr<std_srvs::srv::Empty::Request> request,
+        std::shared_ptr<std_srvs::srv::Empty::Response> response)
+    {
+        RCLCPP_INFO(this->get_logger(), "Service request received");
+
+        // 1) Start listening on the PC BEFORE asking the robot to connect back
+        int listen_sock = create_listening_socket(50000);
+        if (listen_sock < 0) {
+            RCLCPP_INFO(this->get_logger(), "Failed to start listening socket on port 50000");
+            return;
+        }
+
+        std::stringstream command;
+        command << ""
+                << moveJ(picture_joint_positions, 0.25, 1.2, 0)
+                << "";
+
+        // 2) Send URScript to robot (robot will try to connect to this PC)
+        send_command(command, 0, true);
+
+        
+        close_socket(listen_sock);
+    }
+
 
     rclcpp::Service<custom_interfaces_pkg::srv::FoldPointToPoint>::SharedPtr fold_point_to_point;
+    rclcpp::Service<std_srvs::srv::Empty>::SharedPtr fold_point_to_point_home;
+    
     const std::string IP = "192.168.1.100";
     const int PORT = 30020;
 
@@ -341,6 +370,7 @@ private:
     std::vector<double> picture_joint_positions_deg = {33.35, -77.25, 37.02, 220.05, -147.18, -180.25};
     std::vector<double> picture_joint_positions = DegreesToRadians(picture_joint_positions_deg);
 };
+
 
 int main(int argc, char *argv[])
 {

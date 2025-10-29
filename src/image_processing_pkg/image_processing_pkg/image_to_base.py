@@ -10,10 +10,10 @@ class ImageToBaseNode(Node):
         super().__init__('image_to_base_node')
 
         # Camera intrinsics
-        self.fx = 891.01611328125
-        self.fy = 891.01611328125
-        self.cx = 642.7546997070312
-        self.cy = 367.76971435546875
+        self.fx = 908.2691650390625
+        self.fy = 907.7402954101562
+        self.cx = 637.5879516601562
+        self.cy = 355.5464172363281
         
         # tcp to cam (mounting offset)
         self.R_tcp_to_cam = np.array([[0,1,0],
@@ -43,7 +43,10 @@ class ImageToBaseNode(Node):
         self.get_logger().info("image_to_base node ready and providing /image_to_base_srv service.")
 
     def handle_image_to_base(self, request, response):
+        self.get_logger().info("Service called")
+
         u, v = request.imageframe_coordinates
+        u, v = float(u), float(v)
 
         Z_cam = self.camera_height
         #u, v = 640, 360
