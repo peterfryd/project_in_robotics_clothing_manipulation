@@ -11,12 +11,20 @@
 #include <thread>
 #include <sstream>
 #include <netinet/in.h>
+#include <cmath>
 
 
 std::string moveL(std::vector<double> pos, std::vector<double> ori, double speed, double acc, double blend)
 {
     std::stringstream command;
     command << "movel(p[" << pos[0] << "," << pos[1] << "," << pos[2] << "," << ori[0] << "," << ori[1] << "," << ori[2] << "], a = "  << acc << ", v = " << speed << ", r = " << blend << ")\n";
+    return command.str();
+}
+
+std::string moveJ(std::vector<double> joint_positions, double speed, double acc, double blend)
+{
+    std::stringstream command;
+    command << "movej([" << joint_positions[0] << "," << joint_positions[1] << "," << joint_positions[2] << "," << joint_positions[3] << "," << joint_positions[4] << "," << joint_positions[5] << "], a = "  << acc << ", v = " << speed << ", r = " << blend << ")\n";
     return command.str();
 }
 
@@ -42,6 +50,19 @@ std::string openGripper()
 std::string closeGripper()
 {
     return setGripperWidth(33);
+}
+
+float DegreesToRadians(float degrees) {
+    return degrees * (M_PI / 180);
+}
+
+std::vector<double> DegreesToRadians(std::vector<double> degrees_lists) {
+    std::vector<double> radians;
+    for (int i = 0; i < degrees_lists.size(); i++) {
+        float degrees = degrees_lists[i];
+        radians.push_back(degrees * (M_PI / 180));
+    }
+    return radians;
 }
 
 
@@ -261,18 +282,24 @@ private:
 
         std::stringstream command;
         command << ""
-                << moveL(picture_position, picture_orientation, 0.25, 1.2, 0) 
-                << openGripper()
+                << moveJ(picture_joint_positions, 0.5, 1.2, 0) 
                 << moveL(from_point, grip_orientation, 0.25, 1.2, 0)
-                << closeGripper()
-                << moveL(midpoint, grip_orientation, 0.25, 1.2, 0.10)
-                << moveL(to_point, grip_orientation, 0.25, 1.2, 0)
-                << openGripper()
                 << moveL(picture_position, picture_orientation, 0.25, 1.2, 0)
+                << moveL(from_point, grip_orientation, 0.25, 1.2, 0)
+                << moveJ(picture_joint_positions, 0.25, 1.2, 0)
 
-                << "socket_open(\"192.168.1.104\", 50000, socket_name=\"socket_10\")\n"
-                << "socket_send_string(to_str(get_actual_tcp_pose()), socket_name=\"socket_10\")\n"
-                << "socket_close(socket_name=\"socket_10\")\n"
+                // << moveL(picture_position, picture_orientation, 0.25, 1.2, 0) 
+                // << openGripper()
+                // << moveL(from_point, grip_orientation, 0.25, 1.2, 0)
+                // << closeGripper()
+                // << moveL(midpoint, grip_orientation, 0.25, 1.2, 0.10)
+                // << moveL(to_point, grip_orientation, 0.25, 1.2, 0)
+                // << openGripper()
+                // << moveL(picture_position, picture_orientation, 0.25, 1.2, 0)
+
+                // << "socket_open(\"192.168.1.104\", 50000, socket_name=\"socket_10\")\n"
+                // << "socket_send_string(to_str(get_actual_tcp_pose()), socket_name=\"socket_10\")\n"
+                // << "socket_close(socket_name=\"socket_10\")\n"
                 << "";
 
         // 2) Send URScript to robot (robot will try to connect to this PC)
@@ -308,9 +335,11 @@ private:
 
     const double midpoint_extra_height = 0.3;
     
-    std::vector<double> picture_orientation = {3.1415/2, 0.0, -1.992};
-    std::vector<double> picture_position = {-0.473, -0.230, 0.530};
+    std::vector<double> picture_position = {-0.473, -0.230, 0.930};
+    std::vector<double> picture_orientation = {0.973, -1.514, -1.506};
     std::vector<double> grip_orientation = {3.1415, 0, 0};
+    std::vector<double> picture_joint_positions_deg = {33.35, -77.25, 37.02, 220.05, -147.18, -180.25};
+    std::vector<double> picture_joint_positions = DegreesToRadians(picture_joint_positions_deg);
 };
 
 int main(int argc, char *argv[])
@@ -323,5 +352,5 @@ int main(int argc, char *argv[])
 
 /*
 Service call example:
-ros2 service call /fold_point_to_point_srv custom_interfaces_pkg/srv/FoldPointToPoint "{from_point: [0.0, 0.0, 0.0], tp_point: [0.0, 0.0, 0.0]}"
+ros2 service call /fold_point_to_point_srv custom_interfaces_pkg/srv/FoldPointToPoint "{from_point: [-0.436, -0.094, -0.007], to_point: [-0.436, -0.324, -0.007]}"
 */
