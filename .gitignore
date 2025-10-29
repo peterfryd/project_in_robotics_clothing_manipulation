@@ -8,6 +8,7 @@
 # Ignore virtual environment
 /env/
 env/
+.env/
 
 # Colcon-specific
 colcon-core.log
@@ -16,6 +17,7 @@ colcon-core.log
 *.pyc
 *.pyo
 __pycache__/
+/__pycache__/
 
 # CMake build system files
 CMakeFiles/

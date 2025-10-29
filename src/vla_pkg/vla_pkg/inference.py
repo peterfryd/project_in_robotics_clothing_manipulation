@@ -12,15 +12,18 @@ class ModelInference(Node):
     def __init__(self):
         super().__init__('inference')
         self.srv =  self.create_service(Inference, "inference_srv", self.inference)
+        self.bridge = CvBridge()
+        self.get_logger().info("Inference service ready")
     
 
     def inference(self, request, response):
         self.get_logger().info(f"Incoming request: prompt: {request.prompt}")
 
-        bridge = CvBridge()
-        cv_image = bridge.imgmsg_to_cv2(request.image)
-
-        cv_image_resized = cv2.resize(cv_image, (224, 224))  # Resize to model's expected input size
+        cv_image = self.bridge.imgmsg_to_cv2(request.image)
+        cv_image_cropped = cv_image[0:720, 280:1000]
+        cv2.img_write("cropped.png", cv_image_cropped)  # Save the cropped image for debugging
+        cv_image_resized = cv2.resize(cv_image_cropped, (224, 224))  # Resize to model's expected input size
+        cv2.img_write("resized.png", cv_image_resized)
         self.get_logger().info("Image resized, sending to model...")
         
         payload = {"data": cv_image_resized.flatten().tolist(), "prompt": request.prompt}
@@ -50,7 +53,6 @@ def main(args=None):
     finally:
         node.destroy_node()
         rclpy.shutdown()
-
 
 if __name__ == '__main__':
     main()

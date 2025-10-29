@@ -1,4 +1,6 @@
 from setuptools import find_packages, setup
+import os
+from glob import glob
 
 package_name = 'image_processing_pkg'
 
@@ -10,6 +12,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        (os.path.join('share', package_name, 'data'), glob('data/*')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -18,13 +21,12 @@ setup(
     description='TODO: Package description',
     license='TODO: License declaration',
     extras_require={
-        'test': [
-            'pytest',
-        ],
+        'test': ['pytest'],
     },
     entry_points={
         'console_scripts': [
-            'image_to_base = image_processing_pkg.image_to_base:main'
+            'image_to_base = image_processing_pkg.image_to_base:main',
+            'get_pick_and_place_point = image_processing_pkg.get_pick_and_place_point:main'
         ],
     },
 )
