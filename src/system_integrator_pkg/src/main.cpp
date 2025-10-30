@@ -36,6 +36,10 @@ public:
             "/fold_point_to_point_home_srv"
         );
 
+        update_background_image_srv = this->create_client<std_srvs::srv::Empty>(
+            "/update_background_image_srv"
+        );
+
         // Wait for services
         while (!get_pick_and_place_srv->wait_for_service(1s))
         {
@@ -48,6 +52,10 @@ public:
         while (!fold_point_to_point_srv->wait_for_service(1s))
         {
             RCLCPP_INFO(this->get_logger(), "Waiting for fold_point_to_point_srv...");
+        }
+        while (!update_background_image_srv->wait_for_service(1s))
+        {
+            RCLCPP_INFO(this->get_logger(), "Waiting for update_background_image_srv...");
         }
     }
 
@@ -65,15 +73,27 @@ public:
             return 11;
         }
 
+        RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Moved to home!");
+        std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+
+
+        auto update_background_image_req = std::make_shared<std_srvs::srv::Empty::Request>();
+        auto update_background_image_future = update_background_image_srv->async_send_request(update_background_image_req);
+
+        if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), update_background_image_future)
+            != rclcpp::FutureReturnCode::SUCCESS)
+        {
+            RCLCPP_ERROR(this->get_logger(), "Failed to call /update_background_image_srv");
+            return 12;
+        }
+        
+        RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Updated background image!");
+        std::this_thread::sleep_for(std::chrono::milliseconds(10000));
 
         if (prompt_ != ""){
             int step = std::stoi(prompt_);
-
-            RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "before sleep!");
-            std::this_thread::sleep_for(std::chrono::milliseconds(5000));
-            RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "after sleep!");
-
-
+            RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Folding step " +  prompt_);
+            
             auto get_pick_and_place_req = std::make_shared<custom_interfaces_pkg::srv::GetPickAndPlacePoint::Request>();
             get_pick_and_place_req->step_number = step;
 

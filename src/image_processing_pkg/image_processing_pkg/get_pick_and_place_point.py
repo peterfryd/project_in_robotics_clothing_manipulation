@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from std_srvs.srv import Empty
 import rclpy
 from rclpy.node import Node
 import numpy as np
@@ -8,6 +9,10 @@ from image_processing_pkg.folding_instructions import load_background_image, ste
 from sensor_msgs.msg import Image
 import threading
 from cv_bridge import CvBridge
+import cv2
+import os
+from ament_index_python.packages import get_package_share_directory
+
 
 class GetPickAndPlacePointNode(Node):
     def __init__(self):
@@ -17,6 +22,8 @@ class GetPickAndPlacePointNode(Node):
         self.place_point3 = None
         self.pick_point3 = None
         self.place_point4 = None
+        
+        self.pkg_path = get_package_share_directory('image_processing_pkg')
         
         self.lock = threading.Lock()
         self.image = None
@@ -37,13 +44,45 @@ class GetPickAndPlacePointNode(Node):
             self.get_pick_and_place_point_handler
         )
 
-        self.get_logger().info("get_pick_and_place_point node ready and providing /get_pick_and_place_point_srv service.")
+        self.back_ground_srv = self.create_service(
+            Empty,
+            '/update_background_image',
+            self.update_back_ground_image
+        )
+
+        self.get_logger().info("get_pick_and_place_point node ready and providing /get_pick_and_place_point_srv  and /update_background_image service.")
 
     
     def image_callback(self, msg):
         with self.lock:
             self.image = msg
+    
+    def update_back_ground_image(self, request, response):
+        cv_image = None
+        with self.lock:
+            if self.image is not None:
+                cv_image = self.bridge.imgmsg_to_cv2(self.image, desired_encoding='bgr8')
+            else:
+                self.get_logger().error("No Image available to update the background image")
+                return response
+            
+        mask_path = os.path.join(self.pkg_path, 'data', "mask.png")
         
+        mask_image = cv2.imread(mask_path, cv2.IMREAD_COLOR)
+        
+        mask = cv2.bitwise_not(cv2.inRange(mask_image, np.array([255, 255, 255]), np.array([255, 255, 255])))
+        cv2.imwrite(os.path.join(self.pkg_path, 'data', "mask_result.png"), mask)
+        
+        background = cv2.bitwise_and(cv_image, cv_image, mask=mask)
+        cv2.imwrite(os.path.join(self.pkg_path, 'data', "background_result.png"), background)
+        
+        with self.lock:
+            self.background = background
+        
+        self.get_logger().info("Background image updated.")
+        return response
+            
+    
     def get_pick_and_place_point_handler(self, request, response):
         step_number = request.step_number
         cv_image = None
