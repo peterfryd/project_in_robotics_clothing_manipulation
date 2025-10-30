@@ -66,8 +66,8 @@ public:
 
         RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Running!");
 
-        auto fold_point_to_point_home_req = std::make_shared<custom_interfaces_pkg::srv::GetPickAndPlacePoint::Request>();
-        auto fold_point_to_point_home_future = get_pick_and_place_srv->async_send_request(fold_point_to_point_home_req);
+        auto fold_point_to_point_home_req = std::make_shared<std_srvs::srv::Empty::Request>();
+        auto fold_point_to_point_home_future = fold_point_to_point_home_srv->async_send_request(fold_point_to_point_home_req);
 
         if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), fold_point_to_point_home_future)
             != rclcpp::FutureReturnCode::SUCCESS)
