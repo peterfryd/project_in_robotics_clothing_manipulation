@@ -4,6 +4,7 @@ import rclpy
 from rclpy.node import Node
 import numpy as np
 from custom_interfaces_pkg.srv import ImageToBase
+import cv2
 
 class ImageToBaseNode(Node):
     def __init__(self):
@@ -26,7 +27,12 @@ class ImageToBaseNode(Node):
         self.t_base_to_tcp = np.array([-0.473, -0.230, 0.930])
         # joint pose = [33.37, -77.23, 37.00, 220.04, -147.22, -180.21]
         
-
+        self.H = np.array([[0, 0, 0],
+                           [0, 0, 0],
+                           [0, 0, 0]])
+        
+        self.z_height = 0.0
+        
         # Camera height to table
         self.camera_height = 0.928 - 0.06 + 0.035
         self.R_base_to_cam = self.R_base_to_tcp @ self.R_tcp_to_cam
@@ -37,11 +43,25 @@ class ImageToBaseNode(Node):
         self.srv = self.create_service(
             ImageToBase,
             '/image_to_base_srv',
-            self.handle_image_to_base
+            self.image_to_base_homography
         )
 
         self.get_logger().info("image_to_base node ready and providing /image_to_base_srv service.")
 
+    def image_to_base_homography(self, request, response):
+        self.get_logger().info("Service called. Using homogaphy")
+        u, v = request.imageframe_coordinates
+        u, v = float(u), float(v)
+        
+        image_point = np.array([u, v]).reshape(1, 1, 2)
+        projected = cv2.perspectiveTransform(image_point, self.H)
+        x, y = projected[0, 0]
+        
+        self.get_logger().info(f"Transformed ({u}, {v}) to robot coordinate: [{x:.3f}, {y:.3f}, {self.z_height:.3f}]")
+        
+        response.baseframe_coordinates = [x, y, self.z_height]
+        return response
+    
     def handle_image_to_base(self, request, response):
         self.get_logger().info("Service called")
 

@@ -24,7 +24,7 @@ class GetPickAndPlacePointNode(Node):
         
         self.background = load_background_image(image_name = 'background.png')
         
-        self.sub = self.create_subscription(
+        self.sub = self.create_step_numbersubscription(
             Image,
             '/camera/camera/color/image_raw',
             self.image_callback,
