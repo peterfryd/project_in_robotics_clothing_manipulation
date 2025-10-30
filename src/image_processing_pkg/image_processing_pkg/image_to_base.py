@@ -19,7 +19,7 @@ class ImageToBaseNode(Node):
         self.R_tcp_to_cam = np.array([[0,1,0],
                                       [0,0,-1],
                                       [-1,0,0]])
-        self.t_tcp_to_cam = np.array([-0.045, -0.06, -0.01])
+        self.t_tcp_to_cam = np.array([-0.045, -0.055, -0.01])
 
         # base to tcp 
         self.R_base_to_tcp = self.axis_angle_to_rotation_matrix(0.973, -1.514, -1.506)
