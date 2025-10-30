@@ -8,7 +8,7 @@ def load_correspondences(csv_path):
     if not os.path.exists(csv_path):
         raise FileNotFoundError(f"Correspondence file not found: {csv_path}")
     data = np.loadtxt(csv_path, delimiter=",", skiprows=1)
-    robot_points = data[:, 3:5]
+    robot_points = 0.001 *data[:, 3:5]
     image_points = data[:, 1:3]
     return robot_points, image_points
 
@@ -23,8 +23,8 @@ def compute_homography(robot_points, image_points):
     return H
 
 def project_point(image_point, homography):
+    image_point = image_point.astype(np.float64).reshape(1, 1, 2)
     projected = cv2.perspectiveTransform(image_point, homography)
-    print("projected: ",projected)
     # Extract result
     x, y = projected[0, 0]
 
@@ -36,9 +36,9 @@ if __name__ == "__main__":
     csv_path = "/home/peter/uni/project_clothing_fresh/src/image_processing_pkg/homography_generation/data_points.csv"
     robot_points, image_points = load_correspondences(csv_path)
     H = compute_homography(robot_points, image_points)
-    print("The generated homography is: ", H)
+    print("The generated homography is: \n", H)
     
     # Testing homography
-    test_image_point = np.array([0, 0])
-    x,y = project_point(test_image_point)
-    print(f"The image point (u,v): ({test_image_point[0]}, {test_image_point[1]}) is mapped to the robot base at (x,y): ({x},{y})")
+    test_image_point = np.array([730, 506])
+    x,y = project_point(test_image_point, H)
+    print(f"\n The image point (u,v): ({test_image_point[0]}, {test_image_point[1]}) is mapped to the robot base at (x,y): ({x:.3f},{y:.3f})")
