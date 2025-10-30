@@ -29,7 +29,7 @@ class GetPickAndPlacePointNode(Node):
         self.image = None
         self.bridge = CvBridge()
         
-        self.background = load_background_image(image_name = 'background.png')
+        self.background = None
         
         self.sub = self.create_subscription(
             Image,
@@ -46,7 +46,7 @@ class GetPickAndPlacePointNode(Node):
 
         self.back_ground_srv = self.create_service(
             Empty,
-            '/update_background_image',
+            '/update_background_image_srv',
             self.update_back_ground_image
         )
 
@@ -71,10 +71,8 @@ class GetPickAndPlacePointNode(Node):
         mask_image = cv2.imread(mask_path, cv2.IMREAD_COLOR)
         
         mask = cv2.bitwise_not(cv2.inRange(mask_image, np.array([255, 255, 255]), np.array([255, 255, 255])))
-        cv2.imwrite(os.path.join(self.pkg_path, 'data', "mask_result.png"), mask)
         
         background = cv2.bitwise_and(cv_image, cv_image, mask=mask)
-        cv2.imwrite(os.path.join(self.pkg_path, 'data', "background_result.png"), background)
         
         with self.lock:
             self.background = background
