@@ -88,7 +88,7 @@ public:
         }
         
         RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Updated background image!");
-        std::this_thread::sleep_for(std::chrono::milliseconds(10000));
+        std::this_thread::sleep_for(std::chrono::milliseconds(20000));
 
         if (prompt_ != ""){
             int step = std::stoi(prompt_);
