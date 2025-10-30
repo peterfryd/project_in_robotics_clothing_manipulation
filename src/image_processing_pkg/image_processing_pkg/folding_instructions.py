@@ -183,7 +183,7 @@ def step_2_instructions(cv_image, background, step_1_place):
     p1, p2 = np.array(p1, dtype=float), np.array(p2, dtype=float)
 
     v = p2 - p1
-    place_point = (p1 + (p2-p1) / 2).astype(np.int32).tolist()
+    place_point = (p1 + (p2-p1) / 2).astype(int).tolist()
     
     cv2.circle(image_with_hull, place_point, 5, (0, 0, 255), -1)
     cv2.circle(image_with_hull, pick_point, 5, (255, 0, 0), -1)
@@ -223,7 +223,7 @@ def step_3_instructions(cv_image, background):
                 p1, p2 = triangle[i], triangle[j]
     
     pick_point = p2
-    place_point = np.astype(p2 + 0.5 * (p1 - p2), np.int32)
+    place_point = (p2 + 0.5 * (p1 - p2)).astype(int)
 
     cv2.circle(image_with_hull, place_point, 5, (0, 0, 255), -1)
     cv2.circle(image_with_hull, pick_point, 5, (255, 0, 0), -1)
@@ -336,9 +336,9 @@ def step_5_instructions(cv_image, background, place_point_4):
     place_point = np.mean(last_two_points, axis = 0)
     
     
-    rectangle_mid = np.astype(rectangle_mid, np.int32)
-    pick_point = np.astype(pick_point, np.int32)
-    place_point = np.astype(place_point, np.int32)
+    rectangle_mid = np.astype(rectangle_mid, int)
+    pick_point = np.astype(pick_point, int)
+    place_point = np.astype(place_point, int)
     
     cv2.circle(image_with_hull, rectangle_mid.tolist(), 5, (0, 0, 255), -1)
     cv2.circle(image_with_hull, place_point, 5, (0, 0, 255), -1)
