@@ -183,7 +183,7 @@ def step_2_instructions(cv_image, background, step_1_place):
     p1, p2 = np.array(p1, dtype=float), np.array(p2, dtype=float)
 
     v = p2 - p1
-    place_point = np.astype(p1 + (p2-p1) / 2, np.int32).tolist()
+    place_point = (p1 + (p2-p1) / 2).astype(np.int32).tolist()
     
     cv2.circle(image_with_hull, place_point, 5, (0, 0, 255), -1)
     cv2.circle(image_with_hull, pick_point, 5, (255, 0, 0), -1)
