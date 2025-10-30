@@ -92,7 +92,7 @@ public:
 
         if (prompt_ != ""){
             int step = std::stoi(prompt_);
-            RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Folding step %s", prompt_);
+            RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Folding step %i", step);
             
             auto get_pick_and_place_req = std::make_shared<custom_interfaces_pkg::srv::GetPickAndPlacePoint::Request>();
             get_pick_and_place_req->step_number = step;
@@ -204,6 +204,7 @@ private:
     rclcpp::Client<custom_interfaces_pkg::srv::ImageToBase>::SharedPtr image_to_base_srv;
     rclcpp::Client<custom_interfaces_pkg::srv::FoldPointToPoint>::SharedPtr fold_point_to_point_srv;
     rclcpp::Client<std_srvs::srv::Empty>::SharedPtr fold_point_to_point_home_srv;
+    rclcpp::Client<std_srvs::srv::Empty>::SharedPtr update_background_image_srv;
     
     // rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr img_sub;
     // rclcpp::Client<custom_interfaces_pkg::srv::Inference>::SharedPtr inference_srv;
