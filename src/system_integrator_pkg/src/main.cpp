@@ -92,7 +92,7 @@ public:
 
         if (prompt_ != ""){
             int step = std::stoi(prompt_);
-            RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Folding step " +  prompt_);
+            RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Folding step %s", prompt_);
             
             auto get_pick_and_place_req = std::make_shared<custom_interfaces_pkg::srv::GetPickAndPlacePoint::Request>();
             get_pick_and_place_req->step_number = step;
