@@ -10,8 +10,9 @@
 env/
 .env/
 
-# Models
+# Models and data
 *.pth
+clothing_ai/data/images/*.png
 
 # Colcon-specific
 colcon-core.log
