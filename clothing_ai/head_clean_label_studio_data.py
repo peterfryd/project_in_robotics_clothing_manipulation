@@ -3,8 +3,8 @@ import json
 import os
 
 # ==== CONFIG ====
-INPUT_CSV = "/home/peter/uni/project_in_robotics_clothing_manipulation/clothing_ai/data/first/project-2-at-2025-11-05-14-33-62a5adac.csv"  # your CSV export
-OUTPUT_DIR = "/home/peter/uni/project_in_robotics_clothing_manipulation/clothing_ai/data/annos"             # folder for per-image JSONs
+INPUT_CSV = "./data/label_studio_csv_files/last.csv"  # your CSV export
+OUTPUT_DIR = "./data/annos"             # folder for per-image JSONs
 CATEGORY_NAME = "short sleeve top"
 NUM_LANDMARKS = 8  # adjust to match your dataset
 

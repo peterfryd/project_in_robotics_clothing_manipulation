@@ -17,12 +17,12 @@ NEW_IMAGES_DIR = "./data/images"
 SAVE_DIR = "./checkpoints"
 LOG_DIR = "./runs/finetune_logs"
 
-LR = 1e-3
-EPOCHS = 30
+LR = 1e-5
+EPOCHS = 300
 BATCH_SIZE = 8
 NUM_NEW_LANDMARKS = 8
 IMG_SIZE = 224
-SAVE_EVERY_EPOCH = 5
+SAVE_EVERY_EPOCH = 30
 
 os.makedirs(SAVE_DIR, exist_ok=True)
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -116,7 +116,7 @@ for epoch in range(EPOCHS):
         for param in model.parameters():
             param.requires_grad = True
         for param_group in optimizer.param_groups:
-            param_group['lr'] = LR * 0.1
+            param_group['lr'] = LR
 
     for imgs, landmarks in tqdm(train_loader, desc=f"Epoch {epoch+1}/{EPOCHS}", leave=False):
         imgs, landmarks = imgs.to(device), landmarks.to(device)
