@@ -76,7 +76,7 @@ public:
             return 11;
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+        //std::this_thread::sleep_for(std::chrono::milliseconds(5000));
         RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Moved to home!");
 
         if(step == 1){
@@ -181,7 +181,7 @@ public:
             }
             
             RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Moving through points!");
-            std::this_thread::sleep_for(std::chrono::milliseconds(10000));
+            // std::this_thread::sleep_for(std::chrono::milliseconds(10000));
 
             auto fold_point_to_point_result = fold_point_to_point_future.get();
             bool success = fold_point_to_point_result->succes;

@@ -299,16 +299,17 @@ private:
                 << openGripper()
                 << moveL(picture_position, picture_orientation, 0.25, 1.2, 0)
 
-                // << "socket_open(\"192.168.1.104\", 50000, socket_name=\"socket_10\")\n"
-                // << "socket_send_string(to_str(get_actual_tcp_pose()), socket_name=\"socket_10\")\n"
-                // << "socket_close(socket_name=\"socket_10\")\n"
+                // Listening socket on robot
+                << "socket_open(\"" << Read_IP << "\", "<< Read_PORT << ", socket_name=\"socket_10\")\n"
+                << "socket_send_string(to_str(get_actual_tcp_pose()), socket_name=\"socket_10\")\n"
+                << "socket_close(socket_name=\"socket_10\")\n"
                 << "";
 
         // 2) Send URScript to robot (robot will try to connect to this PC)
         send_command(command, 0, true);
 
         // 3) Accept the incoming connection from robot (with timeout)
-        int client = accept_connection(listen_sock, 5000);
+        int client = accept_connection(listen_sock, Read_PORT);
         if (client < 0) {
             RCLCPP_INFO(this->get_logger(), "No incoming connection from robot (timeout or error)");
             close_socket(listen_sock);
@@ -346,21 +347,48 @@ private:
         std::stringstream command;
         command << ""
                 << moveJ(picture_joint_positions, 0.25, 1.2, 0)
+
+                // Listening socket on robot
+                << "socket_open(\"" << Read_IP << "\", "<< Read_PORT << ", socket_name=\"socket_10\")\n"
+                << "socket_send_string(to_str(get_actual_tcp_pose()), socket_name=\"socket_10\")\n"
+                << "socket_close(socket_name=\"socket_10\")\n"
                 << "";
 
         // 2) Send URScript to robot (robot will try to connect to this PC)
         send_command(command, 0, true);
 
+        // 3) Accept the incoming connection from robot (with timeout)
+        int client = accept_connection(listen_sock, Read_PORT);
+        if (client < 0) {
+            RCLCPP_INFO(this->get_logger(), "No incoming connection from robot (timeout or error)");
+            close_socket(listen_sock);
+            return;
+        }
+
+        // 4) Read message from robot
+        std::string msg = read_from_socket(client);
+        RCLCPP_INFO(this->get_logger(), "Message from socket: \n%s", msg.c_str());
+
+        // 5) Clean up the message and convert to vector
+        std::vector<double> current_position = clean_get_actual_tcp_pose(msg);
+        RCLCPP_INFO(this->get_logger(), "Current robot position: x=%.3f, y=%.3f, z=%.3f, rx=%.3f, ry=%.3f, rz=%.3f",
+                    current_position[0], current_position[1], current_position[2],
+                    current_position[3], current_position[4], current_position[5]);
         
+
+        close_socket(client);
         close_socket(listen_sock);
     }
 
-
+x
     rclcpp::Service<custom_interfaces_pkg::srv::FoldPointToPoint>::SharedPtr fold_point_to_point;
     rclcpp::Service<std_srvs::srv::Empty>::SharedPtr fold_point_to_point_home;
     
     const std::string IP = "192.168.1.100";
     const int PORT = 30020;
+
+    const int Read_PORT = 50000;
+    const std::string Read_IP = "192.168.1.104";
 
     const double midpoint_extra_height = 0.3;
     

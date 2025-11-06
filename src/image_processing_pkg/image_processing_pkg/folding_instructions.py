@@ -136,7 +136,7 @@ def step_1_instructions(cv_image, background):
         cv2.circle(image_with_hull, pick_point, 5, (255, 0, 0), -1)
         cv2.circle(image_with_hull, place_point, 5, (0, 0, 255), -1)
         
-    cv2.imwrite('/home/anders/Pictures/robot_images/image_1_instructions.png', image_with_hull)
+    cv2.imwrite('/home/image_1_instructions.png', image_with_hull)
     
     return pick_point, place_point
     
@@ -188,7 +188,7 @@ def step_2_instructions(cv_image, background, step_1_place):
     cv2.circle(image_with_hull, place_point, 5, (0, 0, 255), -1)
     cv2.circle(image_with_hull, pick_point, 5, (255, 0, 0), -1)
         
-    cv2.imwrite('/home/anders/Pictures/robot_images/image_2_instructions.png', image_with_hull)
+    cv2.imwrite('/home/image_2_instructions.png', image_with_hull)
     
     return pick_point, place_point
 
@@ -228,7 +228,7 @@ def step_3_instructions(cv_image, background):
     cv2.circle(image_with_hull, place_point, 5, (0, 0, 255), -1)
     cv2.circle(image_with_hull, pick_point, 5, (255, 0, 0), -1)
         
-    cv2.imwrite('/home/anders/Pictures/robot_images/image_3_instructions.png', image_with_hull)
+    cv2.imwrite('/home/image_3_instructions.png', image_with_hull)
     
     return pick_point, place_point
 
@@ -277,7 +277,7 @@ def step_4_instructions(cv_image, background, step_3_pick, step_3_place):
     cv2.circle(image_with_hull, place_point, 5, (0, 0, 255), -1)
     cv2.circle(image_with_hull, pick_point, 5, (255, 0, 0), -1)
         
-    cv2.imwrite('/home/anders/Pictures/robot_images/image_4_instructions.png', image_with_hull)
+    cv2.imwrite('/home/image_4_instructions.png', image_with_hull)
     return pick_point, place_point
 
 def step_5_instructions(cv_image, background, place_point_4):
@@ -344,7 +344,7 @@ def step_5_instructions(cv_image, background, place_point_4):
     cv2.circle(image_with_hull, place_point, 5, (0, 0, 255), -1)
     cv2.circle(image_with_hull, pick_point, 5, (255, 0, 0), -1)
         
-    cv2.imwrite('/home/anders/Pictures/robot_images/image_5_instructions.png', image_with_hull)
+    cv2.imwrite('/home/image_5_instructions.png', image_with_hull)
     return pick_point, place_point
     
 
