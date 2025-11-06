@@ -10,6 +10,9 @@
 env/
 .env/
 
+# Models
+*.pth
+
 # Colcon-specific
 colcon-core.log
 *.db
