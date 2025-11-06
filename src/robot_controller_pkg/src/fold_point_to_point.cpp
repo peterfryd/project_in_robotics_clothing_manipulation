@@ -379,8 +379,7 @@ private:
         close_socket(client);
         close_socket(listen_sock);
     }
-
-x
+    
     rclcpp::Service<custom_interfaces_pkg::srv::FoldPointToPoint>::SharedPtr fold_point_to_point;
     rclcpp::Service<std_srvs::srv::Empty>::SharedPtr fold_point_to_point_home;
     
