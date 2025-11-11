@@ -4,6 +4,7 @@
 /devel/
 /install/
 /log/
+runs/finetune_logs/*
 
 # Ignore virtual environment
 /env/
