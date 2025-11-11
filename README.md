@@ -136,3 +136,16 @@ Run the main programme:
 ``` bash
 ros2 run system_integrator_pkg main "<command>"
 ``` 
+
+### Create augmented dataset
+Make sure to cd into the clothing_ai folder first
+``` bash
+python augment_images.py   --input ./data/images   --output ./data/augmented_images   --annos ./data/annos   --output-annos ./data/augmented_annos   --num-augmentations 5
+```
+
+### Visialize augmented dataset
+Make sure to cd into the clothing_ai folder first
+``` bash
+### Visalize augmented dataset
+python visualize_annotations.py --images ./data/augmented_images --annos ./data/augmented_annos --num-samples 5
+```
