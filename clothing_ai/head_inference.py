@@ -7,10 +7,11 @@ from PIL import Image, ImageDraw, ImageFont
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np
+import time
 
 # ==== CONFIG ====
 # Path to your fine-tuned 8-landmark model
-MODEL_PATH = "./checkpoints/best_finetuned.pth" 
+MODEL_PATH = "./checkpoints/best_finetuned_v1.pth" 
 # If best_finetuned.pth doesn't exist yet, use finetuned_final.pth
 
 NUM_LANDMARKS = 8
@@ -21,7 +22,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 def load_model(model_path):
     model = models.resnet18(weights=None)
     # Ensure the head matches the fine-tuning script exactly
-    model.fc = nn.Linear(model.fc.in_features, NUM_LANDMARKS * 3)
+    model.fc = nn.Linear(model.fc.in_features, NUM_LANDMARKS * 2)
     
     try:
         model.load_state_dict(torch.load(model_path, map_location=DEVICE))
@@ -36,7 +37,7 @@ def load_model(model_path):
 # ==== INFERENCE FUNCTION ====
 def predict_image(model, img_path, json_path=None):
     if not os.path.exists(img_path): return
-
+    start_time = time.time()
     orig_img = Image.open(img_path).convert("RGB")
     w, h = orig_img.size
     print(f"📏 Image: {w}x{h}")
@@ -50,8 +51,10 @@ def predict_image(model, img_path, json_path=None):
 
     with torch.no_grad():
         # Model outputs [0.0 - 1.0]
-        preds = model(img_tensor).view(NUM_LANDMARKS, 3).cpu()
+        preds = model(img_tensor).view(NUM_LANDMARKS, 2).cpu()
+    end_time = time.time()
 
+    print ("inference time: ",end_time-start_time)
     # Scale Model Output [0-1] -> Pixels
     final_preds = preds.clone()
     final_preds[:, 0] *= w
@@ -86,29 +89,40 @@ def visualize_result(img, preds, gt=None):
 
     # --- Draw GT (Green) ---
     if gt:
-        for i, pt in enumerate(gt):
-             gx, gy = pt[0], pt[1]
-             # Draw Circle using Matplotlib Patch
-             circ = patches.Circle((gx, gy), radius=radius, linewidth=2, 
-                                   edgecolor='#00FF00', facecolor='none')
-             ax.add_patch(circ)
+        for i, (px, py, pv) in enumerate(gt):
+            #  gx, gy = pt[0], pt[1]
+            #  # Draw Circle using Matplotlib Patch
+            #  circ = patches.Circle((gx, gy), radius=radius, linewidth=2, 
+            #                        edgecolor='#00FF00', facecolor='none')
+            #  ax.add_patch(circ)
+            print(f"Landmark {i+1}: (x={px:.1f}, y={py:.1f}, v={pv:.2f})")
+            
+            if True:#pv > 0.1:
+                # 1. Draw Circle
+                circ = patches.Circle((px, py), radius=radius, linewidth=3, 
+                                    edgecolor='green', facecolor='none')
+                ax.add_patch(circ)
+                
+                # 2. Draw BIG Text next to it
+                # fontsize=18 makes it much larger. Adjust as needed.
+                ax.text(px - radius - 20 , py, str(i+1), 
+                        color='white', fontsize=12, weight='bold',
+                        bbox=dict(facecolor='green', alpha=0.5, edgecolor='none', pad=1))
 
     # --- Draw Predictions (Red) ---
     print("\n--- Predictions ---")
-    for i, (px, py, pv) in enumerate(preds):
-        print(f"Landmark {i+1}: (x={px:.1f}, y={py:.1f}, v={pv:.2f})")
+    for i, (px, py) in enumerate(preds):
+        print(f"Landmark {i+1}: (x={px:.1f}, y={py:.1f}")
+        # 1. Draw Circle
+        circ = patches.Circle((px, py), radius=radius, linewidth=3, 
+                                edgecolor='red', facecolor='none')
+        ax.add_patch(circ)
         
-        if True:#pv > 0.1:
-            # 1. Draw Circle
-            circ = patches.Circle((px, py), radius=radius, linewidth=3, 
-                                  edgecolor='red', facecolor='none')
-            ax.add_patch(circ)
-            
-            # 2. Draw BIG Text next to it
-            # fontsize=18 makes it much larger. Adjust as needed.
-            ax.text(px + radius + 5, py + radius + 5, str(i+1), 
-                    color='white', fontsize=12, weight='bold',
-                    bbox=dict(facecolor='red', alpha=0.5, edgecolor='none', pad=1))
+        # 2. Draw BIG Text next to it
+        # fontsize=18 makes it much larger. Adjust as needed.
+        ax.text(px + radius + 5, py, str(i+1), 
+                color='white', fontsize=12, weight='bold',
+                bbox=dict(facecolor='red', alpha=0.5, edgecolor='none', pad=1))
 
     plt.tight_layout()
     plt.show()
@@ -123,8 +137,8 @@ if __name__ == '__main__':
 
     # 2. Define paths to test
     # OPTION A: Manual paths
-    test_image = "./data/images/1_Color.png"
-    test_json = "./data/annos/1_Color.json"
+    test_image = "./data/val_images/1_Color.png"
+    test_json = "./data/val_annos/1_Color.json"
 
     # OPTION B: Auto-find from directory (uncomment to use)
     # image_dir = "./data/first/images"

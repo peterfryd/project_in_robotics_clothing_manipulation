@@ -11,15 +11,17 @@ from tqdm import tqdm
 
 # ==== CONFIG ====
 PRETRAINED_PATH = "./checkpoints/model_backbone.pth"
-NEW_ANNOS_DIR = "./data/annos"
-NEW_IMAGES_DIR = "./data/images"
+NEW_ANNOS_DIR = "./data/augmented_annos"
+NEW_IMAGES_DIR = "./data/augmented_images"
 
 SAVE_DIR = "./checkpoints"
-LOG_DIR = "./runs/finetune_logs"
+# Changed log and save paths to avoid overwriting your v2/v3 models
+LOG_DIR = "./runs/finetune_v1_logs"
 
-LR = 1e-5
-EPOCHS = 300
-BATCH_SIZE = 8
+LR = 1e-4 # Base LR from your v1 script
+BACKBONE_LR = 1e-6 # A much smaller LR for the delicate backbone
+EPOCHS = 500
+BATCH_SIZE = 16
 NUM_NEW_LANDMARKS = 8
 IMG_SIZE = 224
 SAVE_EVERY_EPOCH = 30
@@ -32,10 +34,18 @@ print("Using device:", device)
 
 writer = SummaryWriter(LOG_DIR)
 
-# ==== MASKED LOSS ====
+# ==== MASKED LOSS (Updated) ====
 def masked_l1_loss(preds, targets):
-    vis_mask = (targets[:, :, 2] > 0).unsqueeze(-1).float()
-    diff = torch.abs(preds[:, :, :2] - targets[:, :, :2])
+    # preds shape: [B, 8, 2]
+    # targets shape: [B, 8, 3]
+    
+    # Get visibility mask from targets (the 3rd element)
+    vis_mask = (targets[:, :, 2] > 0).unsqueeze(-1).float() # Shape: [B, 8, 1]
+    
+    # --- CHANGE 3: Compare preds [B, 8, 2] with targets [B, 8, 2] ---
+    diff = torch.abs(preds - targets[:, :, :2]) # Shape: [B, 8, 2]
+    
+    # Mask will broadcast to [B, 8, 2]
     loss = (diff * vis_mask).sum() / vis_mask.sum().clamp(min=1)
     return loss
 
@@ -65,21 +75,18 @@ class NewSmallDataset(Dataset):
             except FileNotFoundError:
                 raise FileNotFoundError(f"Image missing: {item['img_path']}")
 
-            # No need for w, h if annotations are percentages
             landmarks = torch.tensor(item['landmarks'], dtype=torch.float32)
 
-            # === CRITICAL FIX: NORMALIZE FROM PERCENTAGE ===
-            # Input is 0-100, model needs 0.0-1.0
+            # === NORMALIZE FROM PERCENTAGE ===
             landmarks[:, 0] /= 100.0
             landmarks[:, 1] /= 100.0
-            # ===============================================
 
             if self.transform:
                 img = self.transform(img)
 
             return img, landmarks
 
-# ==== MODEL SETUP ====
+# ==== MODEL SETUP (Updated) ====
 print(f"🔄 Loading backbone from {PRETRAINED_PATH}...")
 base_model = models.resnet18(weights=None)
 checkpoint = torch.load(PRETRAINED_PATH, map_location=device)
@@ -91,7 +98,8 @@ base_model.load_state_dict(current_state)
 for param in base_model.parameters():
     param.requires_grad = False
 
-base_model.fc = nn.Linear(base_model.fc.in_features, NUM_NEW_LANDMARKS * 3)
+# --- CHANGE 1: Output 16 values (8 landmarks * 2 coords) ---
+base_model.fc = nn.Linear(base_model.fc.in_features, NUM_NEW_LANDMARKS * 2)
 model = base_model.to(device)
 
 # ==== TRAIN SETUP ====
@@ -101,26 +109,40 @@ train_tfms = transforms.Compose([
     transforms.ToTensor(),
 ])
 dataset = NewSmallDataset(NEW_ANNOS_DIR, NEW_IMAGES_DIR, transform=train_tfms)
-train_loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
-optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=LR)
+train_loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=2) # Added num_workers
+# Initial Optimizer (only head)
+optimizer = optim.Adam(model.fc.parameters(), lr=LR)
 
-# ==== TRAINING LOOP ====
+# ==== TRAINING LOOP (Updated) ====
 best_loss = float('inf')
 
 for epoch in range(EPOCHS):
     model.train()
     running_loss = 0.0
     
-    if epoch == EPOCHS // 2:
+    # --- OPTIMIZER FIX: Must re-initialize optimizer to track new params ---
+    if epoch == 15:
         print("🔓 Unfreezing backbone...")
         for param in model.parameters():
             param.requires_grad = True
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = LR
+        
+        # Get new params
+        backbone_params = [p for n, p in model.named_parameters() if 'fc' not in n]
+        head_params = model.fc.parameters()
+        
+        # Re-init optimizer with differential LRs
+        optimizer = optim.Adam([
+            {'params': backbone_params, 'lr': BACKBONE_LR},  # v. low LR for backbone
+            {'params': head_params, 'lr': LR}          # 1e-5 for head
+        ])
 
     for imgs, landmarks in tqdm(train_loader, desc=f"Epoch {epoch+1}/{EPOCHS}", leave=False):
-        imgs, landmarks = imgs.to(device), landmarks.to(device)
-        preds = model(imgs).view(-1, NUM_NEW_LANDMARKS, 3)
+        imgs = imgs.to(device)
+        landmarks = landmarks.to(device) # Shape [B, 8, 3]
+        
+        # --- CHANGE 2: Reshape to [B, 8, 2] ---
+        preds = model(imgs).view(-1, NUM_NEW_LANDMARKS, 2)
+        
         loss = masked_l1_loss(preds, landmarks)
 
         optimizer.zero_grad()
@@ -130,20 +152,21 @@ for epoch in range(EPOCHS):
         running_loss += loss.item()
 
     avg_loss = running_loss / len(train_loader)
-    writer.add_scalar("finetune/train_loss", avg_loss, epoch)
-    print(f"Epoch {epoch+1:02d} | Train Loss: {avg_loss:.4f}")
+    writer.add_scalar("finetune/train_l1_loss", avg_loss, epoch)
+    print(f"Epoch {epoch+1:02d} | Train L1 Loss: {avg_loss:.4f}")
 
     # Save Best Model
     if avg_loss < best_loss:
         best_loss = avg_loss
-        torch.save(model.state_dict(), os.path.join(SAVE_DIR, "best_finetuned.pth"))
+        torch.save(model.state_dict(), os.path.join(SAVE_DIR, "best_finetuned_v1.pth"))
+        print(f"🏆 New best model saved with loss: {best_loss:.4f}")
 
     # Periodic Save
     if (epoch + 1) % SAVE_EVERY_EPOCH == 0:
-        ckpt_path = os.path.join(SAVE_DIR, f"finetuned_ep{epoch+1}.pth")
+        ckpt_path = os.path.join(SAVE_DIR, f"finetuned_v1_ep{epoch+1}.pth")
         torch.save(model.state_dict(), ckpt_path)
         print(f"💾 Saved checkpoint: {ckpt_path}")
 
-torch.save(model.state_dict(), os.path.join(SAVE_DIR, "finetuned_final.pth"))
+torch.save(model.state_dict(), os.path.join(SAVE_DIR, "finetuned_v1_final.pth"))
 writer.close()
-print("🎉 Done!")
+print("🎉 Done!")   
