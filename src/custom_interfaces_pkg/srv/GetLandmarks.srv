@@ -1,2 +1,3 @@
 ---
 float64[8] landmarks
+sensor_msgs/Image image
