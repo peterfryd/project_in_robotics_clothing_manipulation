@@ -3,17 +3,27 @@
 Image Augmentation Script
 Generates augmented copies of training images with random variations.
 
-Usage:
-    python augment_images.py --input ./data/images --output ./data/augmented_images --num-augmentations 5 --annos ./data/annos --output-annos ./data/augmented_annos
+Configure the settings below and run:
+    python augment_images.py
 """
 
 import os
 import json
-import argparse
 from pathlib import Path
 from PIL import Image, ImageEnhance, ImageFilter
 import random
 from tqdm import tqdm
+
+
+# ==== CONFIGURATION ====
+INPUT_DIR = "./data/images"                    # Directory containing original images
+OUTPUT_DIR = "./data/augmented_images"         # Directory for augmented images
+ANNOS_DIR = "./data/annos"                     # Directory containing annotation JSON files (optional, set to None to skip)
+OUTPUT_ANNOS_DIR = "./data/augmented_annos"    # Directory for augmented annotations (optional, set to None to skip)
+NUM_AUGMENTATIONS = 5                          # Number of augmented versions per image
+IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif']  # Image file extensions to process
+RANDOM_SEED = None                             # Random seed for reproducibility (None for random)
+# =======================
 
 
 def apply_random_augmentations(image, landmarks=None):
@@ -282,76 +292,20 @@ def augment_images(input_dir, output_dir, num_augmentations, annos_dir=None, out
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Generate augmented versions of training images with random variations",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
-    )
-    
-    parser.add_argument(
-        '--input', '-i',
-        type=str,
-        required=True,
-        help='Input directory containing original images'
-    )
-    
-    parser.add_argument(
-        '--output', '-o',
-        type=str,
-        required=True,
-        help='Output directory for augmented images'
-    )
-    
-    parser.add_argument(
-        '--num-augmentations', '-n',
-        type=int,
-        default=5,
-        help='Number of augmented versions to create per image'
-    )
-    
-    parser.add_argument(
-        '--annos', '-a',
-        type=str,
-        default=None,
-        help='Input directory containing annotation JSON files (optional)'
-    )
-    
-    parser.add_argument(
-        '--output-annos',
-        type=str,
-        default=None,
-        help='Output directory for augmented annotation files (optional, requires --annos)'
-    )
-    
-    parser.add_argument(
-        '--extensions', '-e',
-        type=str,
-        nargs='+',
-        default=['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif'],
-        help='Image file extensions to process'
-    )
-    
-    parser.add_argument(
-        '--seed',
-        type=int,
-        default=None,
-        help='Random seed for reproducibility (optional)'
-    )
-    
-    args = parser.parse_args()
-    
+    """Run augmentation with configured settings."""
     # Set random seed if provided
-    if args.seed is not None:
-        random.seed(args.seed)
-        print(f"🎲 Using random seed: {args.seed}")
+    if RANDOM_SEED is not None:
+        random.seed(RANDOM_SEED)
+        print(f"🎲 Using random seed: {RANDOM_SEED}")
     
     # Run augmentation
     augment_images(
-        input_dir=args.input,
-        output_dir=args.output,
-        num_augmentations=args.num_augmentations,
-        annos_dir=args.annos,
-        output_annos_dir=args.output_annos,
-        image_extensions=args.extensions
+        input_dir=INPUT_DIR,
+        output_dir=OUTPUT_DIR,
+        num_augmentations=NUM_AUGMENTATIONS,
+        annos_dir=ANNOS_DIR,
+        output_annos_dir=OUTPUT_ANNOS_DIR,
+        image_extensions=IMAGE_EXTENSIONS
     )
 
 

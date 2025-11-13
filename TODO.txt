@@ -1,4 +1,1 @@
-* Crop image to square. Then make smaller
-* Create launch file
-* Tape on gripper to specify coordinate system
-* Services should log when ready
+Wrong annotation: 41
