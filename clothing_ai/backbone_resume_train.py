@@ -11,9 +11,9 @@ from tqdm import tqdm
 import numpy as np
 
 # ==== CONFIG ====
-DATA_ROOT = "/home/peter/uni/clothing_ai/Data"
-SAVE_DIR = "./checkpoints"
-LOG_DIR = "./runs/landmark_logs"
+DATA_ROOT = "clothing_ai/data/Data_backbone"
+SAVE_DIR = "clothing_ai/checkpoints_backbone_resume"
+LOG_DIR = "clothing_ai/runs/backbone_resume"
 
 BATCH_SIZE = 64
 LR = 1e-4
