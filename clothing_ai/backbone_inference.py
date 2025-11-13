@@ -8,15 +8,10 @@ from PIL import Image
 import torch.nn as nn
 
 # ==== CONFIG ====
-# IMG_PATH = "/home/peter/uni/clothing_ai/Data/validation/images/000555.jpg"
-# IMG_PATH = "/home/peter/uni/clothing_ai/4.jpg"
-# ANN_PATH = "/home/peter/uni/clothing_ai/Data/validation/annotations/000555.json"
-# CKPT_PATH = "./checkpoints/model_step_15000.pth"
-
 IMAGE_NR = "000042"
 IMG_PATH = "clothing_ai/data/Data_backbone/train/images/" + IMAGE_NR + ".jpg"
 ANN_PATH = "clothing_ai/data/Data_backbone/train/annotations/" + IMAGE_NR + ".json"
-CKPT_PATH = "clothing_ai/model.pth"
+CKPT_PATH = "clothing_ai/checkpoints_backbone_resume/model_backbone_original.pth"
 
 IMG_SIZE = 224
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
