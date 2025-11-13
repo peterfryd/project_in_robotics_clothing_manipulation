@@ -31,7 +31,7 @@ def load_model(model_path):
         nn.Linear(in_feats, hidden_dim), # 512 -> 256
         nn.ReLU(),                       # Activation
         nn.Dropout(p=0.5),               # Regularization
-        nn.Linear(hidden_dim, NUM_NEW_LANDMARKS * 2) # 256 -> 16
+        nn.Linear(hidden_dim, NUM_LANDMARKS * 2) # 256 -> 16
     )
     # --- End architecture match ---
     
