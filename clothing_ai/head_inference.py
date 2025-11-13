@@ -11,8 +11,8 @@ import time
 
 # ==== CONFIG ====
 # Path to your fine-tuned 8-landmark model
-MODEL_PATH = "./checkpoints/best_head_model.pth" 
-# If best_finetuned.pth doesn't exist yet, use finetuned_final.pth
+MODEL_PATH = "./checkpoints/head_model_deep_best.pth" 
+# ^^^ Make sure this matches your new model name (best_head_model_deep.pth)
 
 NUM_LANDMARKS = 8
 IMG_SIZE = 224
@@ -24,10 +24,14 @@ def load_model(model_path):
     base_model = models.resnet18(weights=None)
     in_feats = base_model.fc.in_features
     
-    # --- Replicate the head architecture from head_train.py ---
+    # --- Replicate the DEEPER head architecture from head_train.py ---
+    hidden_dim = 256 # Must match the hidden_dim in your training script
+    
     base_model.fc = nn.Sequential(
-        nn.Dropout(p=0.5),
-        nn.Linear(in_feats, NUM_LANDMARKS * 2)
+        nn.Linear(in_feats, hidden_dim), # 512 -> 256
+        nn.ReLU(),                       # Activation
+        nn.Dropout(p=0.5),               # Regularization
+        nn.Linear(hidden_dim, NUM_NEW_LANDMARKS * 2) # 256 -> 16
     )
     # --- End architecture match ---
     
@@ -74,7 +78,7 @@ def predict_image(model, img_path, json_path=None):
         with open(json_path, 'r') as f:
             data = json.load(f)
             if 'landmarks' in data:
-                gt = torch.tensor(data['landmarks'], dtype=torch.float32)
+                gt = torch.tensor(data['landmarks'], dtype=torch.float332)
                 # Convert GT from 0-100% to Pixels
                 gt[:, 0] = (gt[:, 0] / 100.0) * w
                 gt[:, 1] = (gt[:, 1] / 100.0) * h
@@ -97,22 +101,18 @@ def visualize_result(img, preds, gt=None):
 
     # --- Draw GT (Green) ---
     if gt:
+        # Your updated GT drawing loop
+        print("\n--- Ground Truth ---")
         for i, (px, py, pv) in enumerate(gt):
-            #  gx, gy = pt[0], pt[1]
-            #  # Draw Circle using Matplotlib Patch
-            #  circ = patches.Circle((gx, gy), radius=radius, linewidth=2, 
-            #                        edgecolor='#00FF00', facecolor='none')
-            #  ax.add_patch(circ)
             print(f"Landmark {i+1}: (x={px:.1f}, y={py:.1f}, v={pv:.2f})")
             
-            if True:#pv > 0.1:
+            if pv > 0: # Only draw visible GT
                 # 1. Draw Circle
                 circ = patches.Circle((px, py), radius=radius, linewidth=3, 
                                     edgecolor='green', facecolor='none')
                 ax.add_patch(circ)
                 
-                # 2. Draw BIG Text next to it
-                # fontsize=18 makes it much larger. Adjust as needed.
+                # 2. Draw Text
                 ax.text(px - radius - 20 , py, str(i+1), 
                         color='white', fontsize=12, weight='bold',
                         bbox=dict(facecolor='green', alpha=0.5, edgecolor='none', pad=1))
@@ -126,8 +126,7 @@ def visualize_result(img, preds, gt=None):
                                 edgecolor='red', facecolor='none')
         ax.add_patch(circ)
         
-        # 2. Draw BIG Text next to it
-        # fontsize=18 makes it much larger. Adjust as needed.
+        # 2. Draw Text
         ax.text(px + radius + 5, py, str(i+1), 
                 color='white', fontsize=12, weight='bold',
                 bbox=dict(facecolor='red', alpha=0.5, edgecolor='none', pad=1))
@@ -135,27 +134,14 @@ def visualize_result(img, preds, gt=None):
     plt.tight_layout()
     plt.show()
 
-    # Optional: Save result
-    # img.save("inference_result.png")
-
 # ==== RUN IT ====
 if __name__ == '__main__':
     # 1. Initialize Model
     model = load_model(MODEL_PATH)
 
     # 2. Define paths to test
-    # OPTION A: Manual paths
     test_image = "./data/val_images/12_Color.png"
     test_json = "./data/val_annos/12_Color.json"
-
-    # OPTION B: Auto-find from directory (uncomment to use)
-    # image_dir = "./data/first/images"
-    # annos_dir = "./data/first/annos"
-    # first_img = os.listdir(image_dir)[0]
-    # test_image = os.path.join(image_dir, first_img)
-    # # Try to guess JSON path by replacing extension
-    # likely_json = first_img.rsplit('.', 1)[0] + '.json'
-    # test_json = os.path.join(annos_dir, likely_json)
     
     print(f"🖼️ Running inference on: {test_image}")
     if os.path.exists(test_json):
