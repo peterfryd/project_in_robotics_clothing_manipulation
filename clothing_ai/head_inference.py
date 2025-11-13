@@ -78,7 +78,7 @@ def predict_image(model, img_path, json_path=None):
         with open(json_path, 'r') as f:
             data = json.load(f)
             if 'landmarks' in data:
-                gt = torch.tensor(data['landmarks'], dtype=torch.float332)
+                gt = torch.tensor(data['landmarks'], dtype=torch.float32)
                 # Convert GT from 0-100% to Pixels
                 gt[:, 0] = (gt[:, 0] / 100.0) * w
                 gt[:, 1] = (gt[:, 1] / 100.0) * h
