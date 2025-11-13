@@ -11,27 +11,35 @@ import time
 
 # ==== CONFIG ====
 # Path to your fine-tuned 8-landmark model
-MODEL_PATH = "./checkpoints/best_finetuned_v1.pth" 
+MODEL_PATH = "./checkpoints/best_head_model.pth" 
 # If best_finetuned.pth doesn't exist yet, use finetuned_final.pth
 
 NUM_LANDMARKS = 8
 IMG_SIZE = 224
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# ==== LOAD MODEL ====
+# ==== LOAD MODEL (Updated) ====
 def load_model(model_path):
-    model = models.resnet18(weights=None)
-    # Ensure the head matches the fine-tuning script exactly
-    model.fc = nn.Linear(model.fc.in_features, NUM_LANDMARKS * 2)
+    print(f"⏳ Loading model from {model_path}...")
+    base_model = models.resnet18(weights=None)
+    in_feats = base_model.fc.in_features
+    
+    # --- Replicate the head architecture from head_train.py ---
+    base_model.fc = nn.Sequential(
+        nn.Dropout(p=0.5),
+        nn.Linear(in_feats, NUM_LANDMARKS * 2)
+    )
+    # --- End architecture match ---
     
     try:
-        model.load_state_dict(torch.load(model_path, map_location=DEVICE))
-    except FileNotFoundError:
-        print(f"❌ Error: Model not found at {model_path}")
+        base_model.load_state_dict(torch.load(model_path, map_location=DEVICE))
+    except Exception as e:
+        print(f"❌ Error loading model: {e}")
         exit()
         
-    model.to(DEVICE)
-    model.eval()
+    model = base_model.to(DEVICE)
+    model.eval() # Set model to evaluation mode (turns off dropout)
+    print("✅ Model loaded successfully.")
     return model
 
 # ==== INFERENCE FUNCTION ====
@@ -137,8 +145,8 @@ if __name__ == '__main__':
 
     # 2. Define paths to test
     # OPTION A: Manual paths
-    test_image = "./data/val_images/1_Color.png"
-    test_json = "./data/val_annos/1_Color.json"
+    test_image = "./data/val_images/12_Color.png"
+    test_json = "./data/val_annos/12_Color.json"
 
     # OPTION B: Auto-find from directory (uncomment to use)
     # image_dir = "./data/first/images"

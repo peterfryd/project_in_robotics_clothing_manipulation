@@ -15,41 +15,35 @@ NEW_ANNOS_DIR = "./data/augmented_annos"
 NEW_IMAGES_DIR = "./data/augmented_images"
 
 SAVE_DIR = "./checkpoints"
-# Changed log and save paths to avoid overwriting your v2/v3 models
-LOG_DIR = "./runs/finetune_v1_logs"
+# Updated log/save paths
+LOG_DIR = "./runs/finetune_v1_reg_logs"
+MODEL_SAVE_PREFIX = "finetuned_v1_reg"
 
-LR = 1e-5 # Base LR
-BACKBONE_LR = 1e-6 # Backbone LR
-EPOCHS = 500
-BATCH_SIZE = 16
+LR = 1e-3
+BACKBONE_LR = 1e-4
+EPOCHS = 100
+UNFREEZE_EPOCH = 100 # Your original script had this
+BATCH_SIZE = 8
 NUM_NEW_LANDMARKS = 8
 IMG_SIZE = 224
 SAVE_EVERY_EPOCH = 30
+WEIGHT_DECAY = 1e-5 # Regularization parameter
 
 os.makedirs(SAVE_DIR, exist_ok=True)
 os.makedirs(LOG_DIR, exist_ok=True)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 print("Using device:", device)
-
 writer = SummaryWriter(LOG_DIR)
 
-# ==== MASKED LOSS (Updated) ====
+# ==== MASKED L1 LOSS (Unchanged) ====
 def masked_l1_loss(preds, targets):
-    # preds shape: [B, 8, 2]
-    # targets shape: [B, 8, 3]
-    
-    # Get visibility mask from targets (the 3rd element)
-    vis_mask = (targets[:, :, 2] > 0).unsqueeze(-1).float() # Shape: [B, 8, 1]
-    
-    # --- CHANGE 3: Compare preds [B, 8, 2] with targets [B, 8, 2] ---
-    diff = torch.abs(preds - targets[:, :, :2]) # Shape: [B, 8, 2]
-    
-    # Mask will broadcast to [B, 8, 2]
+    vis_mask = (targets[:, :, 2] > 0).unsqueeze(-1).float() 
+    diff = torch.abs(preds - targets[:, :, :2])
     loss = (diff * vis_mask).sum() / vis_mask.sum().clamp(min=1)
     return loss
 
-# ==== DATASET ====
+# ==== DATASET (Unchanged) ====
 class NewSmallDataset(Dataset):
     def __init__(self, annos_dir, images_dir, transform=None):
         self.transform = transform
@@ -74,19 +68,14 @@ class NewSmallDataset(Dataset):
                 img = Image.open(item['img_path']).convert("RGB")
             except FileNotFoundError:
                 raise FileNotFoundError(f"Image missing: {item['img_path']}")
-
             landmarks = torch.tensor(item['landmarks'], dtype=torch.float32)
-
-            # === NORMALIZE FROM PERCENTAGE ===
             landmarks[:, 0] /= 100.0
             landmarks[:, 1] /= 100.0
-
             if self.transform:
                 img = self.transform(img)
-
             return img, landmarks
 
-# ==== MODEL SETUP (Updated) ====
+# ==== MODEL SETUP (Updated with Dropout) ====
 print(f"🔄 Loading backbone from {PRETRAINED_PATH}...")
 base_model = models.resnet18(weights=None)
 checkpoint = torch.load(PRETRAINED_PATH, map_location=device)
@@ -98,51 +87,54 @@ base_model.load_state_dict(current_state)
 for param in base_model.parameters():
     param.requires_grad = False
 
-# --- CHANGE 1: Output 16 values (8 landmarks * 2 coords) ---
-base_model.fc = nn.Linear(base_model.fc.in_features, NUM_NEW_LANDMARKS * 2)
+# --- CHANGE 1: Add Dropout layer ---
+in_feats = base_model.fc.in_features
+base_model.fc = nn.Sequential(
+    nn.Dropout(p=0.5), # Add 50% dropout before the linear layer
+    nn.Linear(in_feats, NUM_NEW_LANDMARKS * 2)
+)
+# --- END CHANGE ---
+
 model = base_model.to(device)
 
-# ==== TRAIN SETUP ====
+# ==== TRAIN SETUP (Updated with Weight Decay) ====
 train_tfms = transforms.Compose([
     transforms.Resize((IMG_SIZE, IMG_SIZE)),
     transforms.ColorJitter(0.2, 0.2, 0.2, 0.1),
     transforms.ToTensor(),
 ])
 dataset = NewSmallDataset(NEW_ANNOS_DIR, NEW_IMAGES_DIR, transform=train_tfms)
-train_loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=2) # Added num_workers
-# Initial Optimizer (only head)
-optimizer = optim.Adam(model.fc.parameters(), lr=LR)
+train_loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=2)
 
-# ==== TRAINING LOOP (Updated) ====
+# --- CHANGE 2: Add weight_decay ---
+optimizer = optim.Adam(model.fc.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
+
+# ==== TRAINING LOOP (Updated with Weight Decay) ====
 best_loss = float('inf')
 
 for epoch in range(EPOCHS):
     model.train()
     running_loss = 0.0
     
-    # --- OPTIMIZER FIX: Must re-initialize optimizer to track new params ---
-    if epoch == 15:
+    if epoch == UNFREEZE_EPOCH:
         print("🔓 Unfreezing backbone...")
         for param in model.parameters():
             param.requires_grad = True
         
-        # Get new params
         backbone_params = [p for n, p in model.named_parameters() if 'fc' not in n]
         head_params = model.fc.parameters()
         
-        # Re-init optimizer with differential LRs
+        # --- CHANGE 3: Add weight_decay ---
         optimizer = optim.Adam([
-            {'params': backbone_params, 'lr': BACKBONE_LR},  # v. low LR for backbone
-            {'params': head_params, 'lr': LR}          # 1e-5 for head
-        ])
+            {'params': backbone_params, 'lr': BACKBONE_LR},
+            {'params': head_params, 'lr': LR}
+        ], weight_decay=WEIGHT_DECAY)
 
     for imgs, landmarks in tqdm(train_loader, desc=f"Epoch {epoch+1}/{EPOCHS}", leave=False):
         imgs = imgs.to(device)
-        landmarks = landmarks.to(device) # Shape [B, 8, 3]
+        landmarks = landmarks.to(device)
         
-        # --- CHANGE 2: Reshape to [B, 8, 2] ---
         preds = model(imgs).view(-1, NUM_NEW_LANDMARKS, 2)
-        
         loss = masked_l1_loss(preds, landmarks)
 
         optimizer.zero_grad()
@@ -152,21 +144,21 @@ for epoch in range(EPOCHS):
         running_loss += loss.item()
 
     avg_loss = running_loss / len(train_loader)
-    writer.add_scalar("finetune/train_l1_loss", avg_loss, epoch)
+    writer.add_scalar(f"{MODEL_SAVE_PREFIX}/train_l1_loss", avg_loss, epoch)
     print(f"Epoch {epoch+1:02d} | Train L1 Loss: {avg_loss:.4f}")
 
     # Save Best Model
     if avg_loss < best_loss:
         best_loss = avg_loss
-        torch.save(model.state_dict(), os.path.join(SAVE_DIR, "best_finetuned_v1.pth"))
+        torch.save(model.state_dict(), os.path.join(SAVE_DIR, f"best_{MODEL_SAVE_PREFIX}.pth"))
         print(f"🏆 New best model saved with loss: {best_loss:.4f}")
 
     # Periodic Save
     if (epoch + 1) % SAVE_EVERY_EPOCH == 0:
-        ckpt_path = os.path.join(SAVE_DIR, f"finetuned_v1_ep{epoch+1}.pth")
+        ckpt_path = os.path.join(SAVE_DIR, f"{MODEL_SAVE_PREFIX}_ep{epoch+1}.pth")
         torch.save(model.state_dict(), ckpt_path)
         print(f"💾 Saved checkpoint: {ckpt_path}")
 
-torch.save(model.state_dict(), os.path.join(SAVE_DIR, "finetuned_v1_final.pth"))
+torch.save(model.state_dict(), os.path.join(SAVE_DIR, f"{MODEL_SAVE_PREFIX}_final.pth"))
 writer.close()
-print("🎉 Done!")   
+print("🎉 Done!")
