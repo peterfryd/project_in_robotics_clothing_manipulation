@@ -3,8 +3,8 @@ import json
 import os
 
 # ==== CONFIG ====
-INPUT_CSV = "./data/label_studio_csv_files/combined.csv"  # your CSV export
-OUTPUT_DIR = "./data/annos"             # folder for per-image JSONs
+INPUT_CSV = "./data/label_studio_csv_files/validation_combined.csv"  # your CSV export
+OUTPUT_DIR = "./data/val_annos"             # folder for per-image JSONs
 CATEGORY_NAME = "short sleeve top"
 NUM_LANDMARKS = 8  # adjust to match your dataset
 

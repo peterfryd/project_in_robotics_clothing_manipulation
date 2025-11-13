@@ -14,6 +14,9 @@ env/
 # Models and data
 *.pth
 clothing_ai/data/images/*.png
+clothing_ai/data/augmented_images/*.png
+clothing_ai/data/augmented_annos/*
+clothing_ai/data/val_images/*.png
 
 # Colcon-specific
 colcon-core.log
