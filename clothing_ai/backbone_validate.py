@@ -6,10 +6,25 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, models
 from PIL import Image
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 # ==== CONFIG ====
-DATA_ROOT = "/home/peter/uni/clothing_ai/Data"
-CKPT_PATH = "./checkpoints/model_final.pth"  # change if you want to validate earlier checkpoint
+DATA_ROOT = "clothing_ai/data/deepFashion2"
+# Can be a single path (string) or a list of paths
+CKPT_PATH = "clothing_ai/checkpoints_backbone_resume/model_step_25000.pth"
+CKPT_PATH = [
+    "clothing_ai/checkpoints_backbone_resume/model_backbone_original.pth",
+    "clothing_ai/checkpoints_backbone_resume/model_step_16000.pth",
+    "clothing_ai/checkpoints_backbone_resume/model_step_17000.pth",
+    "clothing_ai/checkpoints_backbone_resume/model_step_18000.pth",
+    "clothing_ai/checkpoints_backbone_resume/model_step_19000.pth",
+    "clothing_ai/checkpoints_backbone_resume/model_step_20000.pth",
+    "clothing_ai/checkpoints_backbone_resume/model_step_21000.pth",
+    "clothing_ai/checkpoints_backbone_resume/model_step_22000.pth"
+    "clothing_ai/checkpoints_backbone_resume/model_step_23000.pth"
+    "clothing_ai/checkpoints_backbone_resume/model_step_24000.pth"
+    "clothing_ai/checkpoints_backbone_resume/model_step_25000.pth"
+]
 IMG_SIZE = 224
 BATCH_SIZE = 16
 
@@ -71,22 +86,88 @@ first_ann = json.load(open(os.path.join(DATA_ROOT, "validation", "annotations",
                         os.listdir(os.path.join(DATA_ROOT, "validation", "annotations"))[0])))
 num_landmarks = len(first_ann["landmarks"])
 
-model = LandmarkRegressor(num_landmarks=num_landmarks)
-model.load_state_dict(torch.load(CKPT_PATH, map_location="cpu"))
-
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model.to(device)
-model.eval()
 
-# ==== VALIDATION LOOP ====
-criterion = nn.MSELoss()
-val_loss = 0.0
+# ==== CONVERT CKPT_PATH TO LIST ====
+if isinstance(CKPT_PATH, str):
+    checkpoint_paths = [CKPT_PATH]
+else:
+    checkpoint_paths = CKPT_PATH
 
-with torch.no_grad():
-    for imgs, landmarks in tqdm(val_loader, desc="Validating"):
-        imgs, landmarks = imgs.to(device), landmarks.to(device)
-        preds = model(imgs)
-        val_loss += criterion(preds, landmarks).item()
+# ==== VALIDATION FUNCTION ====
+def validate_model(ckpt_path):
+    """Validate a single model checkpoint and return the loss."""
+    model = LandmarkRegressor(num_landmarks=num_landmarks)
+    checkpoint = torch.load(ckpt_path, map_location="cpu")
+    model.load_state_dict(checkpoint["model_state_dict"])
+    model.to(device)
+    model.eval()
+    
+    criterion = nn.MSELoss()
+    val_loss = 0.0
+    
+    with torch.no_grad():
+        for imgs, landmarks in tqdm(val_loader, desc=f"Validating {os.path.basename(ckpt_path)}"):
+            imgs, landmarks = imgs.to(device), landmarks.to(device)
+            preds = model(imgs)
+            val_loss += criterion(preds, landmarks).item()
+    
+    val_loss /= len(val_loader)
+    return val_loss
 
-val_loss /= len(val_loader)
-print(f"✅ Validation MSE Loss: {val_loss:.4f}")
+# ==== RUN VALIDATION ON ALL CHECKPOINTS ====
+results = []
+
+for ckpt_path in checkpoint_paths:
+    print(f"\n{'='*60}")
+    print(f"Validating: {ckpt_path}")
+    print(f"{'='*60}")
+    
+    val_loss = validate_model(ckpt_path)
+    
+    results.append({
+        'path': ckpt_path,
+        'name': os.path.basename(ckpt_path),
+        'loss': val_loss
+    })
+    
+    print(f"✅ Validation MSE Loss: {val_loss:.6f}")
+
+# ==== PRINT SUMMARY ====
+print(f"\n{'='*60}")
+print("VALIDATION SUMMARY")
+print(f"{'='*60}")
+for result in results:
+    print(f"{result['name']:40s} | Loss: {result['loss']:.6f}")
+
+# ==== PLOT COMPARISON IF MULTIPLE MODELS ====
+if len(results) > 1:
+    print(f"\n{'='*60}")
+    print("Creating comparison plot...")
+    print(f"{'='*60}")
+    
+    names = [r['name'] for r in results]
+    losses = [r['loss'] for r in results]
+    
+    plt.figure(figsize=(12, 6))
+    plt.bar(range(len(names)), losses, color='steelblue', alpha=0.7)
+    plt.xlabel('Model Checkpoint', fontsize=12)
+    plt.ylabel('Validation MSE Loss', fontsize=12)
+    plt.title('Model Comparison - Validation Loss', fontsize=14, fontweight='bold')
+    plt.xticks(range(len(names)), names, rotation=45, ha='right')
+    plt.grid(axis='y', alpha=0.3)
+    plt.tight_layout()
+    
+    # Save plot
+    plot_path = "clothing_ai/validation_comparison.png"
+    plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+    print(f"✅ Plot saved to: {plot_path}")
+    
+    # Show plot
+    plt.show()
+    
+    # Find best model
+    best_result = min(results, key=lambda x: x['loss'])
+    print(f"\n🏆 Best Model: {best_result['name']} with Loss: {best_result['loss']:.6f}")
+else:
+    print(f"\n✅ Single model validation complete.")

@@ -21,7 +21,7 @@ SINGLE_IMAGE_PATH = [
     "saved_images/anders_shirt/image_5.png",
     "saved_images/anders_shirt/image_6.png"
 ]
-DATA_DIR = "clothing_ai/data/Data_backbone/train"
+DATA_DIR = "clothing_ai/data/deepFashion2/train"
 CKPT_PATH = "clothing_ai/checkpoints_backbone_resume/model_step_25000.pth"
 NUM_IMAGES = 6  # Only used if SINGLE_IMAGE_PATH is None
 NUM_LANDMARKS = 25  # Number of landmarks to predict
