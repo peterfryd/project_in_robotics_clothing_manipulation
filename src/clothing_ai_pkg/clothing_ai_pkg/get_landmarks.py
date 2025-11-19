@@ -26,14 +26,15 @@ class GetLandmarksNode(Node):
         self.bridge = CvBridge()
         
         # Load Model
-        model_name = "finetuned_v1_final.pth"
+        model_name = "model.pth"
         self.pkg_path = get_package_share_directory('clothing_ai_pkg')
         model_path = os.path.join(self.pkg_path, 'data', model_name)
         if not os.path.exists(model_path):
             self.get_logger().error(f"Model file not found at {model_path}")
             exit()
         
-        self.num_landmarks = 8
+        self.num_landmarks = 25
+        self.data_per_landmark = 3  # x and y, visibility
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.image_size = 224
         self.model = self.load_model(model_path)
@@ -56,7 +57,7 @@ class GetLandmarksNode(Node):
 
     def load_model(self, model_path):
         model = models.resnet18(weights=None)
-        model.fc = nn.Linear(model.fc.in_features, self.num_landmarks * 2)
+        model.fc = nn.Linear(model.fc.in_features, self.num_landmarks * self.data_per_landmark)
     
         try:
             model.load_state_dict(torch.load(model_path, map_location=self.device))

@@ -3,6 +3,7 @@
 #include <string>
 #include <chrono>
 #include <thread>
+#include <typeinfo>
 
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/image.hpp"
@@ -11,6 +12,7 @@
 #include "custom_interfaces_pkg/srv/get_pick_and_place_point.hpp"
 #include "custom_interfaces_pkg/srv/image_to_base.hpp"
 #include "custom_interfaces_pkg/srv/fold_point_to_point.hpp"
+#include "custom_interfaces_pkg/srv/get_landmarks.hpp"
 
 using namespace std::chrono_literals;
 
@@ -20,6 +22,7 @@ public:
     SystemIntegration(const std::string &prompt)
         : Node("main"), prompt_(prompt)
     {
+        // Create service clients
         get_pick_and_place_srv = this->create_client<custom_interfaces_pkg::srv::GetPickAndPlacePoint>(
             "/get_pick_and_place_point_srv"
         );
@@ -30,6 +33,10 @@ public:
 
         fold_point_to_point_srv = this->create_client<custom_interfaces_pkg::srv::FoldPointToPoint>(
             "/fold_point_to_point_srv"
+        );
+
+        get_landmarks_srv = this->create_client<custom_interfaces_pkg::srv::GetLandmarks>(
+            "/get_landmarks_srv"
         );
 
         fold_point_to_point_home_srv = this->create_client<std_srvs::srv::Empty>(
@@ -83,19 +90,22 @@ public:
 
 
         if(step == 1){
-            // Update background image
-            auto update_background_image_req = std::make_shared<std_srvs::srv::Empty::Request>();
-            auto update_background_image_future = update_background_image_srv->async_send_request(update_background_image_req);
+            // Get landmarks
+            auto get_landmarks_req = std::make_shared<custom_interfaces_pkg::srv::GetLandmarks::Request>();
+            auto get_landmarks_future = get_landmarks_srv->async_send_request(get_landmarks_req);
 
-            if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), update_background_image_future)
+            if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), get_landmarks_future)
                 != rclcpp::FutureReturnCode::SUCCESS)
             {
-                RCLCPP_ERROR(this->get_logger(), "Failed to call /update_background_image_srv");
-                return 12;
+                RCLCPP_ERROR(this->get_logger(), "Failed to call /get_landmarks_srv");
+                return 10;
             }
-            
-            RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Updated background image!");
-            std::this_thread::sleep_for(std::chrono::milliseconds(20000));
+
+            auto get_landmarks_result = get_landmarks_future.get();
+            RCLCPP_INFO(this->get_logger(), "Got response from /get_landmarks_srv service");
+            std::string landmarks_type = typeid(get_landmarks_result).name();
+            RCLCPP_INFO(this->get_logger(), "get_landmarks_result: %s", landmarks_type.c_str());
+            RCLCPP_INFO(this->get_logger(), "Landmark 0: x = %f, y = %f", get_landmarks_result->landmarks[0].x, get_landmarks_result->landmarks[0].y);
         }
 
         if (prompt_ != ""){
@@ -213,6 +223,7 @@ private:
     rclcpp::Client<custom_interfaces_pkg::srv::GetPickAndPlacePoint>::SharedPtr get_pick_and_place_srv;
     rclcpp::Client<custom_interfaces_pkg::srv::ImageToBase>::SharedPtr image_to_base_srv;
     rclcpp::Client<custom_interfaces_pkg::srv::FoldPointToPoint>::SharedPtr fold_point_to_point_srv;
+    rclcpp::Client<custom_interfaces_pkg::srv::GetLandmarks>::SharedPtr get_landmarks_srv;
     rclcpp::Client<std_srvs::srv::Empty>::SharedPtr fold_point_to_point_home_srv;
     rclcpp::Client<std_srvs::srv::Empty>::SharedPtr update_background_image_srv;
     
