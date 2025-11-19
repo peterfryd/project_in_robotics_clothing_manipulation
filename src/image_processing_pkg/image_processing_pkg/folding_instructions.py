@@ -68,17 +68,21 @@ def load_background_image(image_name='background.png'):
     return img
 
 
-def step_1_instructions(landmarks:np.ndarray,  fold_type:str='square') -> tuple[np.ndarray, np.ndarray]:
+def step_1_instructions(landmarks:np.ndarray,  fold_type:str='square') -> tuple[list, list]:
     if fold_type == 'star':
         # Pick point is landmark 3
         # Place point is midpoint between landmark 1, 6 and 8
-        pick_point = landmarks[3]
-        place_point = (landmarks[1] + landmarks[6] + landmarks[8]) / 3
+        pick_point = [landmarks[3].x, landmarks[3].y]
+        place_point_y = (landmarks[1].y + landmarks[6].y + landmarks[8].y) / 3
+        place_point_x = (landmarks[1].x + landmarks[6].x + landmarks[8].x) / 3
+        place_point = [place_point_x, place_point_y]
     elif fold_type == 'square':
         # Pick point is landmark 3
         # Place point is two thirds between landmark 3 and 6
-        pick_point = landmarks[3]
-        place_point = (landmarks[6] - landmarks[3])*2/3 + landmarks[3]
+        pick_point = [landmarks[3].x, landmarks[3].y]
+        place_point_x = (landmarks[6].x - landmarks[3].x)*2/3 + landmarks[3].x
+        place_point_y = (landmarks[6].y - landmarks[3].y)*2/3 + landmarks[3].y
+        place_point = [place_point_x, place_point_y]
     else:
         raise ValueError(f"Unknown fold type: {fold_type}")
 

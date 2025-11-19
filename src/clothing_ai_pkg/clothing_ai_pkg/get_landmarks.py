@@ -60,7 +60,18 @@ class GetLandmarksNode(Node):
         model.fc = nn.Linear(model.fc.in_features, self.num_landmarks * self.data_per_landmark)
     
         try:
-            model.load_state_dict(torch.load(model_path, map_location=self.device))
+            checkpoint = torch.load(model_path, map_location=self.device)
+            # Check if it's a checkpoint dict or just state_dict
+            if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+                state_dict = checkpoint['model_state_dict']
+                # Remove 'backbone.' prefix if present
+                if all(k.startswith('backbone.') for k in state_dict.keys()):
+                    state_dict = {k.replace('backbone.', ''): v for k, v in state_dict.items()}
+                model.load_state_dict(state_dict)
+                self.get_logger().info(f"✅ Loaded model from checkpoint at epoch {checkpoint.get('epoch', 'unknown')}")
+            else:
+                model.load_state_dict(checkpoint)
+                self.get_logger().info(f"✅ Loaded model from {model_path}")
         except FileNotFoundError:
             self.get_logger().error(f"❌ Model not found at {model_path}")
             exit()
@@ -112,10 +123,13 @@ class GetLandmarksNode(Node):
 
         # Forward pass
         with torch.no_grad():
-            preds = self.model(img_tensor).view(self.num_landmarks, 2).cpu()
+            preds = self.model(img_tensor).view(self.num_landmarks, self.data_per_landmark).cpu()
+
+        # Extract only x, y coordinates (ignore visibility)
+        preds_xy = preds[:, :2]
 
         # Scale model output [0-1] -> pixel coordinates
-        final_preds = preds.clone()
+        final_preds = preds_xy.clone()
         final_preds[:, 0] *= pil_image.width
         final_preds[:, 1] *= pil_image.height
 
@@ -123,16 +137,15 @@ class GetLandmarksNode(Node):
         return landmarks
 
     def annotate_image(self, image, landmarks):
-        # Ensure save directory exists
-        save_dir = os.path.join(self.pkg_path, 'data')
-        os.makedirs(save_dir, exist_ok=True)
-
+        # Save to outermost directory (workspace root)
+        workspace_root = '/home/anders/workspace/project_in_robotics_clothing_manipulation'
+        
         for lm in landmarks:  # lm is a Landmark object
             x = lm.x
             y = lm.y
             cv2.circle(image, (int(x), int(y)), 5, (0, 255, 0), -1)
         
-        save_path = os.path.join(save_dir, 'landmark_result.png')
+        save_path = os.path.join(workspace_root, 'landmark_result.png')
         cv2.imwrite(save_path, image)
         self.get_logger().info(f"Saved visualized result to {save_path}")
 

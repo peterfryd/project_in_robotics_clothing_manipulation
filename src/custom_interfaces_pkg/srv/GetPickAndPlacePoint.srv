@@ -1,5 +1,6 @@
 # Request
 int32 step_number
+Landmark[8] landmarks
 ---
 # Response
 int32[2] image_pick_point

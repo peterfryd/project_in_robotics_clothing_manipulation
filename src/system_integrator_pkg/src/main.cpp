@@ -4,15 +4,20 @@
 #include <chrono>
 #include <thread>
 #include <typeinfo>
+#include <fstream>
+#include <vector>
+#include <filesystem>
 
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/image.hpp"
 #include "std_srvs/srv/empty.hpp"
+#include "opencv2/opencv.hpp"
 
 #include "custom_interfaces_pkg/srv/get_pick_and_place_point.hpp"
 #include "custom_interfaces_pkg/srv/image_to_base.hpp"
 #include "custom_interfaces_pkg/srv/fold_point_to_point.hpp"
 #include "custom_interfaces_pkg/srv/get_landmarks.hpp"
+#include "custom_interfaces_pkg/msg/landmark.hpp"
 
 using namespace std::chrono_literals;
 
@@ -22,6 +27,11 @@ public:
     SystemIntegration(const std::string &prompt)
         : Node("main"), prompt_(prompt)
     {
+        // Create image publisher
+        image_pub_ = this->create_publisher<sensor_msgs::msg::Image>(
+            "/camera/camera/color/image_raw", 10
+        );
+
         // Create service clients
         get_pick_and_place_srv = this->create_client<custom_interfaces_pkg::srv::GetPickAndPlacePoint>(
             "/get_pick_and_place_point_srv"
@@ -43,11 +53,15 @@ public:
             "/fold_point_to_point_home_srv"
         );
 
-        update_background_image_srv = this->create_client<std_srvs::srv::Empty>(
-            "/update_background_image_srv"
-        );
+        // update_background_image_srv = this->create_client<std_srvs::srv::Empty>(
+        //     "/update_background_image_srv"
+        // );
 
         // Wait for services
+        while (!get_landmarks_srv->wait_for_service(1s))
+        {
+            RCLCPP_INFO(this->get_logger(), "Waiting for get_landmarks_srv...");
+        }
         while (!get_pick_and_place_srv->wait_for_service(1s))
         {
             RCLCPP_INFO(this->get_logger(), "Waiting for get_pick_and_place_point_srv...");
@@ -60,15 +74,14 @@ public:
         {
             RCLCPP_INFO(this->get_logger(), "Waiting for fold_point_to_point_srv...");
         }
-        while (!update_background_image_srv->wait_for_service(1s))
-        {
-            RCLCPP_INFO(this->get_logger(), "Waiting for update_background_image_srv...");
-        }
+        // while (!update_background_image_srv->wait_for_service(1s))
+        // {
+        //     RCLCPP_INFO(this->get_logger(), "Waiting for update_background_image_srv...");
+        // }
     }
 
     int run()
     {
-
         int step = std::stoi(prompt_);
 
         RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Running!");
@@ -88,6 +101,7 @@ public:
         //std::this_thread::sleep_for(std::chrono::milliseconds(5000));
         RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Moved to home!");
 
+        std::array<custom_interfaces_pkg::msg::Landmark, 8UL> landmarks;
 
         if(step == 1){
             // Get landmarks
@@ -100,8 +114,9 @@ public:
                 RCLCPP_ERROR(this->get_logger(), "Failed to call /get_landmarks_srv");
                 return 10;
             }
-
             auto get_landmarks_result = get_landmarks_future.get();
+            landmarks = get_landmarks_result->landmarks;
+            RCLCPP_INFO(this->get_logger(), "Got response from /get_landmarks_srv service");
             RCLCPP_INFO(this->get_logger(), "Got response from /get_landmarks_srv service");
             std::string landmarks_type = typeid(get_landmarks_result).name();
             RCLCPP_INFO(this->get_logger(), "get_landmarks_result: %s", landmarks_type.c_str());
@@ -113,6 +128,7 @@ public:
             
             auto get_pick_and_place_req = std::make_shared<custom_interfaces_pkg::srv::GetPickAndPlacePoint::Request>();
             get_pick_and_place_req->step_number = step;
+            get_pick_and_place_req->landmarks = landmarks;
 
             auto get_pick_and_place_future = get_pick_and_place_srv->async_send_request(get_pick_and_place_req);
 
@@ -220,12 +236,13 @@ private:
 
     std::string prompt_;
 
+    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_pub_;
     rclcpp::Client<custom_interfaces_pkg::srv::GetPickAndPlacePoint>::SharedPtr get_pick_and_place_srv;
     rclcpp::Client<custom_interfaces_pkg::srv::ImageToBase>::SharedPtr image_to_base_srv;
     rclcpp::Client<custom_interfaces_pkg::srv::FoldPointToPoint>::SharedPtr fold_point_to_point_srv;
     rclcpp::Client<custom_interfaces_pkg::srv::GetLandmarks>::SharedPtr get_landmarks_srv;
     rclcpp::Client<std_srvs::srv::Empty>::SharedPtr fold_point_to_point_home_srv;
-    rclcpp::Client<std_srvs::srv::Empty>::SharedPtr update_background_image_srv;
+    // rclcpp::Client<std_srvs::srv::Empty>::SharedPtr update_background_image_srv;
     
     // rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr img_sub;
     // rclcpp::Client<custom_interfaces_pkg::srv::Inference>::SharedPtr inference_srv;

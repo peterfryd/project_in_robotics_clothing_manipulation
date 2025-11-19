@@ -45,11 +45,11 @@ class GetPickAndPlacePointNode(Node):
             self.get_pick_and_place_point_handler
         )
 
-        self.back_ground_srv = self.create_service(
-            Empty,
-            '/update_background_image_srv',
-            self.update_back_ground_image
-        )
+        # self.back_ground_srv = self.create_service(
+        #     Empty,
+        #     '/update_background_image_srv',
+        #     self.update_back_ground_image
+        # )
 
         self.get_logger().info("get_pick_and_place_point node ready and providing /get_pick_and_place_point_srv  and /update_background_image service.")
 
@@ -84,6 +84,7 @@ class GetPickAndPlacePointNode(Node):
     
     def get_pick_and_place_point_handler(self, request, response):
         step_number = request.step_number
+        landmarks = request.landmarks
         cv_image = None
         
         # Check if image is ready
@@ -108,46 +109,33 @@ class GetPickAndPlacePointNode(Node):
         place_point = [0, 0]
         
         if step_number == 1:
-            # Get landmarks by calling the get_landmarks service
-            from custom_interfaces_pkg.srv import GetLandmarks
-            client = self.create_client(GetLandmarks, '/get_landmarks_srv')
-            while not client.wait_for_service(timeout_sec=1.0):
-                self.get_logger().info('Waiting for /get_landmarks_srv service...')
-            
-            request_landmarks = GetLandmarks.Request()
-            request_landmarks.image = self.bridge.cv2_to_imgmsg(cv_image, encoding='bgr8')
-            future = client.call_async(request_landmarks)
-            rclpy.spin_until_future_complete(self, future)
-            landmarks = future.result().landmarks
-            landmarks = np.array([[landmark.x, landmark.y] for landmark in landmarks])
-            
             self.get_logger().info("Running Step 1")
             pick_point, place_point = step_1_instructions(landmarks=landmarks)
             self.place_point1 = place_point
-        elif step_number == 2:
-            if self.place_point1 is None:
-                self.get_logger().warn("Run step 1 before running step 2")
-            else:
-                self.get_logger().info("Running Step 2")
-                pick_point, place_point = step_2_instructions(cv_image, self.background, self.place_point1)
-        elif step_number == 3:
-            self.get_logger().info("Running Step 3")
-            pick_point, place_point = step_3_instructions(cv_image, self.background)
-            self.place_point3 = place_point
-            self.pick_point3 = pick_point
-        elif step_number == 4:
-            if self.place_point3 is None or self.pick_point3 is None:
-                self.get_logger().warn("Run step 3 before running step 4")
-            else:
-                self.get_logger().info("Running Step 4")
-                pick_point, place_point = step_4_instructions(cv_image, self.background, self.pick_point3, self.place_point3)
-                self.place_point4 = place_point
-        elif step_number == 5:
-            self.get_logger().info("Running Step 5")
-            pick_point, place_point = step_5_>instructions(cv_image, self.background, self.place_point4)
+        # elif step_number == 2:
+        #     if self.place_point1 is None:
+        #         self.get_logger().warn("Run step 1 before running step 2")
+        #     else:
+        #         self.get_logger().info("Running Step 2")
+        #         pick_point, place_point = step_2_instructions(cv_image, self.background, self.place_point1)
+        # elif step_number == 3:
+        #     self.get_logger().info("Running Step 3")
+        #     pick_point, place_point = step_3_instructions(cv_image, self.background)
+        #     self.place_point3 = place_point
+        #     self.pick_point3 = pick_point
+        # elif step_number == 4:
+        #     if self.place_point3 is None or self.pick_point3 is None:
+        #         self.get_logger().warn("Run step 3 before running step 4")
+        #     else:
+        #         self.get_logger().info("Running Step 4")
+        #         pick_point, place_point = step_4_instructions(cv_image, self.background, self.pick_point3, self.place_point3)
+        #         self.place_point4 = place_point
+        # elif step_number == 5:
+        #     self.get_logger().info("Running Step 5")
+        #     pick_point, place_point = step_5_>instructions(cv_image, self.background, self.place_point4)
 
-        else:
-            self.get_logger().warn(f"Unknown step number {step_number}, returning [0, 0].")
+        # else:
+        #     self.get_logger().warn(f"Unknown step number {step_number}, returning [0, 0].")
             
 
         response.image_pick_point = pick_point

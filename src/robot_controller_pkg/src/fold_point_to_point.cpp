@@ -279,7 +279,7 @@ private:
         std::vector<double> to_point = {request->to_point[0],request->to_point[1], request->to_point[2]};
         std::vector<double> midpoint = {(from_point[0] + to_point[0])/2, (from_point[1] + to_point[1])/2, std::max(from_point[2], to_point[2]) + midpoint_extra_height};
 
-        RCLCPP_INFO(this->get_logger(), "Service request received");
+        RCLCPP_INFO(this->get_logger(), "Service request received to /fold_point_to_point_srv");
 
         // 1) Start listening on the PC BEFORE asking the robot to connect back
         int listen_sock = create_listening_socket(50000);
@@ -335,7 +335,7 @@ private:
         const std::shared_ptr<std_srvs::srv::Empty::Request> request,
         std::shared_ptr<std_srvs::srv::Empty::Response> response)
     {
-        RCLCPP_INFO(this->get_logger(), "Service request received");
+        RCLCPP_INFO(this->get_logger(), "Service request received to /fold_point_to_point_home_srv");
 
         // 1) Start listening on the PC BEFORE asking the robot to connect back
         int listen_sock = create_listening_socket(50000);
