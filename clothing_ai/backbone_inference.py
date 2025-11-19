@@ -12,16 +12,16 @@ import glob
 # ==== CONFIG ====
 # Specify image path(s) here, or leave as None to use random images
 # Can be a single path (string), a list of paths, or None
-# SINGLE_IMAGE_PATH = None
 SINGLE_IMAGE_PATH = [
-    "saved_images/anders_shirt/image_1.png",
-    "saved_images/anders_shirt/image_2.png",
-    "saved_images/anders_shirt/image_3.png",
-    "saved_images/anders_shirt/image_4.png",
-    "saved_images/anders_shirt/image_5.png",
-    "saved_images/anders_shirt/image_6.png"
+    "clothing_ai/data/our_flats/image_1.png",
+    "clothing_ai/data/our_flats/image_2.png",
+    "clothing_ai/data/our_flats/image_3.png",
+    "clothing_ai/data/our_flats/image_4.png",
+    "clothing_ai/data/our_flats/image_5.png",
+    "clothing_ai/data/our_flats/image_6.png"
 ]
-DATA_DIR = "clothing_ai/data/deepFashion2/train"
+SINGLE_IMAGE_PATH = None
+DATA_DIR = "clothing_ai/data/our_flats/"  # Used if SINGLE_IMAGE_PATH is None
 CKPT_PATH = "clothing_ai/checkpoints_backbone_resume/model_step_25000.pth"
 NUM_IMAGES = 6  # Only used if SINGLE_IMAGE_PATH is None
 NUM_LANDMARKS = 25  # Number of landmarks to predict
@@ -51,8 +51,26 @@ if SINGLE_IMAGE_PATH is not None:
         selected_images = SINGLE_IMAGE_PATH
         print(f"Running inference on {len(selected_images)} specified images")
 else:
-    # Use random images
-    image_files = glob.glob(os.path.join(DATA_DIR, "images", "*.jpg"))
+    # Use random images - try multiple patterns and locations
+    image_files = []
+    
+    # Try images subdirectory with jpg and png
+    patterns = [
+        os.path.join(DATA_DIR, "images", "*.jpg"),
+        os.path.join(DATA_DIR, "images", "*.png"),
+        os.path.join(DATA_DIR, "*.jpg"),
+        os.path.join(DATA_DIR, "*.png"),
+    ]
+    
+    for pattern in patterns:
+        found = glob.glob(pattern)
+        if found:
+            image_files.extend(found)
+            break  # Stop after finding images with first matching pattern
+    
+    if not image_files:
+        raise FileNotFoundError(f"No images found in {DATA_DIR}. Tried patterns: {patterns}")
+    
     selected_images = random.sample(image_files, min(NUM_IMAGES, len(image_files)))
     print(f"Running inference on {len(selected_images)} random images")
 

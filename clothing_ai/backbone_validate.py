@@ -26,7 +26,7 @@ CKPT_PATH = [
     "clothing_ai/checkpoints_backbone_resume/model_step_25000.pth"
 ]
 IMG_SIZE = 224
-BATCH_SIZE = 16
+BATCH_SIZE = 16 
 
 # ==== DATASET ====
 class ShortSleeveLandmarkDataset(Dataset):

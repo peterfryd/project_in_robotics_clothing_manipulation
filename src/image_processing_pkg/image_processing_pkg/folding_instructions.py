@@ -68,7 +68,7 @@ def load_background_image(image_name='background.png'):
     return img
 
 
-def step_1_instructions(landmarks:np.ndarray[float],  fold_type:str='star') -> tuple[np.ndarray[float], np.ndarray[float]]:
+def step_1_instructions(landmarks:np.ndarray,  fold_type:str='square') -> tuple[np.ndarray, np.ndarray]:
     if fold_type == 'star':
         # Pick point is landmark 3
         # Place point is midpoint between landmark 1, 6 and 8
@@ -85,7 +85,7 @@ def step_1_instructions(landmarks:np.ndarray[float],  fold_type:str='star') -> t
     return pick_point, place_point
     
 
-def step_2_instructions(landmarks:np.ndarray[float], landmarks_origional:np.ndarray[float], fold_type:str='star') -> tuple[np.ndarray[float], np.ndarray[float]]:
+def step_2_instructions(landmarks:np.ndarray, landmarks_origional:np.ndarray, fold_type:str='square') -> tuple[np.ndarray, np.ndarray]:
     if fold_type == 'star':
         # Pick point is landmark 6
         # Place point is midpoint between landmark 6 and landmarks_origional 1
@@ -102,7 +102,7 @@ def step_2_instructions(landmarks:np.ndarray[float], landmarks_origional:np.ndar
     return pick_point, place_point
 
 
-def step_3_instructions(landmarks:np.ndarray[float], landmarks_origional:np.ndarray[float], fold_type:str='star') -> tuple[np.ndarray[float], np.ndarray[float]]:
+def step_3_instructions(landmarks:np.ndarray, landmarks_origional:np.ndarray, fold_type:str='square') -> tuple[np.ndarray, np.ndarray]:
     if fold_type == 'star':
         # Pick point is landmark 1
         # Place point is the midpoint between landmark 1 and landmarks_origional 6
@@ -119,7 +119,7 @@ def step_3_instructions(landmarks:np.ndarray[float], landmarks_origional:np.ndar
     return pick_point, place_point
 
 
-def step_4_instructions(landmarks:np.ndarray[float], landmarks_origional:np.ndarray[float], fold_type:str='star') -> tuple[np.ndarray[float], np.ndarray[float]]:
+def step_4_instructions(landmarks:np.ndarray, landmarks_origional:np.ndarray, fold_type:str='square') -> tuple[np.ndarray, np.ndarray]:
     if fold_type == 'star':
         # Pick point is landmark 8
         # Place point is midpoint between landmark 8 and 3
@@ -136,10 +136,10 @@ def step_4_instructions(landmarks:np.ndarray[float], landmarks_origional:np.ndar
     return pick_point, place_point
 
 
-def step_5_instructions(landmarks:np.ndarray[float], landmarks_origional:np.ndarray[float], fold_type:str='star') -> tuple[np.ndarray[float], np.ndarray[float]]:
+def step_5_instructions(landmarks:np.ndarray, landmarks_origional:np.ndarray, fold_type:str='square') -> tuple[np.ndarray, np.ndarray] | None:
     if fold_type == 'star':
         print("Star fold only has 4 steps")
-        return None, None
+        return None
     elif fold_type == 'square':
         # Pick point is between landmarks_origional 1 and 8
         # Place point is between landmarks_origional 4 and 5

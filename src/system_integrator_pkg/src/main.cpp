@@ -66,6 +66,8 @@ public:
 
         RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Running!");
 
+
+        // Move to home position
         auto fold_point_to_point_home_req = std::make_shared<std_srvs::srv::Empty::Request>();
         auto fold_point_to_point_home_future = fold_point_to_point_home_srv->async_send_request(fold_point_to_point_home_req);
 
@@ -79,7 +81,9 @@ public:
         //std::this_thread::sleep_for(std::chrono::milliseconds(5000));
         RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Moved to home!");
 
+
         if(step == 1){
+            // Update background image
             auto update_background_image_req = std::make_shared<std_srvs::srv::Empty::Request>();
             auto update_background_image_future = update_background_image_srv->async_send_request(update_background_image_req);
 
