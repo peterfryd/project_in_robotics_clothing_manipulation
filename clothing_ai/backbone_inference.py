@@ -1,6 +1,5 @@
 import os
 import cv2
-import json
 import torch
 import numpy as np
 from torchvision import transforms, models
@@ -10,6 +9,10 @@ import random
 import glob
 
 # ==== CONFIG ====
+<<<<<<< HEAD
+IMG_PATH = "/home/peter/uni/DeepFashion2/deepfashion2_original_images/validation/image/000647.jpg"
+CKPT_PATH = "./checkpoints/model.pth"
+=======
 # Specify image path(s) here, or leave as None to use random images
 # Can be a single path (string), a list of paths, or None
 SINGLE_IMAGE_PATH = [
@@ -26,8 +29,10 @@ CKPT_PATH = "clothing_ai/checkpoints_backbone_resume/model_step_25000.pth"
 NUM_IMAGES = 6  # Only used if SINGLE_IMAGE_PATH is None
 NUM_LANDMARKS = 25  # Number of landmarks to predict
 
+>>>>>>> 7fd7eaf242a249a215c13d93daeed7c3605fbf41
 IMG_SIZE = 224
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+NUM_LANDMARKS = 25  # Set this to the number your model predicts
 
 # ==== MODEL ====
 class LandmarkRegressor(nn.Module):
@@ -41,6 +46,9 @@ class LandmarkRegressor(nn.Module):
     def forward(self, x):
         return self.backbone(x).view(-1, self.num_landmarks, 3)
 
+<<<<<<< HEAD
+# ==== LOAD MODEL ====
+=======
 # ==== GET RANDOM IMAGES ====
 if SINGLE_IMAGE_PATH is not None:
     # Convert single path to list if needed
@@ -76,6 +84,7 @@ else:
 
 # ==== LOAD MODEL ====
 print(f"Using {NUM_LANDMARKS} landmarks for model.")
+>>>>>>> 7fd7eaf242a249a215c13d93daeed7c3605fbf41
 model = LandmarkRegressor(NUM_LANDMARKS).to(DEVICE)
 checkpoint = torch.load(CKPT_PATH, map_location=DEVICE)
 model.load_state_dict(checkpoint["model_state_dict"])
@@ -136,6 +145,38 @@ for img_path in selected_images:
         'gt_landmarks': gt_landmarks
     })
 
+<<<<<<< HEAD
+# ==== CONVERT NORMALIZED PREDICTIONS BACK TO PIXELS ====
+pred_landmarks = preds.copy()
+pred_landmarks[:, 0] *= IMG_SIZE
+pred_landmarks[:, 1] *= IMG_SIZE
+
+# Print predictions
+for idx, (px, py, pv) in enumerate(pred_landmarks):
+    print(f"Landmark {idx}: Predicted (x={px:.1f}, y={py:.1f}, v={pv:.2f})")
+
+# ==== VISUALIZE PREDICTIONS ====
+resized_pil = orig_pil.resize((IMG_SIZE, IMG_SIZE))
+cv_img = cv2.cvtColor(np.array(resized_pil), cv2.COLOR_RGB2BGR)
+
+for idx, (px, py, pv) in enumerate(pred_landmarks):
+    px, py = int(px), int(py)
+    # Draw prediction points (green)
+    cv2.circle(cv_img, (px, py), 3, (0, 255, 0), -1)
+    # Put landmark index
+    cv2.putText(
+        cv_img,
+        str(idx + 1),
+        (px, py - 5),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.4,
+        (255, 255, 255),
+        1,
+        cv2.LINE_AA
+    )
+
+cv2.imshow("Predicted Landmarks", cv_img)
+=======
 # ==== VISUALIZE ALL IMAGES IN A GRID ====
 if len(results) == 1:
     # Single image - show larger
@@ -298,5 +339,6 @@ else:
     cv2.imshow("Landmark Predictions - All Images", grid_canvas)
 
 print(f"\nDisplaying {len(results)} image(s). Press any key to close.")
+>>>>>>> 7fd7eaf242a249a215c13d93daeed7c3605fbf41
 cv2.waitKey(0)
 cv2.destroyAllWindows()

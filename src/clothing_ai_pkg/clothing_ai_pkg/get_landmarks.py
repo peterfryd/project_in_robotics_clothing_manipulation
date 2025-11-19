@@ -1,0 +1,153 @@
+#!/usr/bin/env python3
+import rclpy
+from rclpy.node import Node
+import numpy as np
+from custom_interfaces_pkg.srv import GetLandmarks
+from sensor_msgs.msg import Image
+import threading
+from cv_bridge import CvBridge
+from ament_index_python.packages import get_package_share_directory
+from custom_interfaces_pkg.msg import Landmark
+import cv2
+import os
+import torch
+import torch.nn as nn
+from torchvision import transforms, models
+from PIL import Image as PILImage
+
+
+class GetLandmarksNode(Node):
+    def __init__(self):
+        super().__init__('get_landmarks_node')
+
+        # Image update lock
+        self.lock = threading.Lock()
+        self.image = None
+        self.bridge = CvBridge()
+        
+        # Load Model
+        model_name = "finetuned_v1_final.pth"
+        self.pkg_path = get_package_share_directory('clothing_ai_pkg')
+        model_path = os.path.join(self.pkg_path, 'data', model_name)
+        if not os.path.exists(model_path):
+            self.get_logger().error(f"Model file not found at {model_path}")
+            exit()
+        
+        self.num_landmarks = 8
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.image_size = 224
+        self.model = self.load_model(model_path)
+        
+        # ROS2 Subscribers and Services
+        self.sub = self.create_subscription(
+            Image,
+            '/camera/camera/color/image_raw',
+            self.image_callback,
+            10
+        )
+        
+        self.srv = self.create_service(
+            GetLandmarks,
+            '/get_landmarks_srv',
+            self.get_landmarks
+        )
+
+        self.get_logger().info("get_landmarks node ready and providing /get_landmarks_srv.")
+
+    def load_model(self, model_path):
+        model = models.resnet18(weights=None)
+        model.fc = nn.Linear(model.fc.in_features, self.num_landmarks * 2)
+    
+        try:
+            model.load_state_dict(torch.load(model_path, map_location=self.device))
+        except FileNotFoundError:
+            self.get_logger().error(f"❌ Model not found at {model_path}")
+            exit()
+            
+        model.to(self.device)
+        model.eval()
+        return model
+        
+    def image_callback(self, msg):
+        with self.lock:
+            self.image = msg
+    
+    def get_landmarks(self, request, response):
+        cv_image = None
+        ros_image = None
+        with self.lock:
+            if self.image is not None:
+                ros_image = self.image
+                cv_image = self.bridge.imgmsg_to_cv2(self.image, desired_encoding='bgr8')
+            else:
+                self.get_logger().warning("No image available yet for landmark detection")
+                return response  # return empty response gracefully
+
+        # Run inference
+        final_preds = self.run_inference(cv_image)
+        landmarks_list = [Landmark(x=float(pair[0]), y=float(pair[1])) for pair in final_preds]
+        response.landmarks = landmarks_list
+        response.image = ros_image
+        
+        # Annotate and save image
+        self.annotate_image(cv_image, response.landmarks)
+        
+        return response
+        
+    def run_inference(self, image):
+        # Convert OpenCV image (BGR) to PIL RGB
+        if isinstance(image, np.ndarray):
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            pil_image = PILImage.fromarray(image)
+        else:
+            raise RuntimeError("Invalid image type passed to run_inference")
+        
+        # Transform and create tensor
+        tfms = transforms.Compose([
+            transforms.Resize((self.image_size, self.image_size)),
+            transforms.ToTensor(),
+        ])
+        img_tensor = tfms(pil_image).unsqueeze(0).to(self.device)
+
+        # Forward pass
+        with torch.no_grad():
+            preds = self.model(img_tensor).view(self.num_landmarks, 2).cpu()
+
+        # Scale model output [0-1] -> pixel coordinates
+        final_preds = preds.clone()
+        final_preds[:, 0] *= pil_image.width
+        final_preds[:, 1] *= pil_image.height
+
+        landmarks = final_preds.tolist()
+        return landmarks
+
+    def annotate_image(self, image, landmarks):
+        # Ensure save directory exists
+        save_dir = os.path.join(self.pkg_path, 'data')
+        os.makedirs(save_dir, exist_ok=True)
+
+        for lm in landmarks:  # lm is a Landmark object
+            x = lm.x
+            y = lm.y
+            cv2.circle(image, (int(x), int(y)), 5, (0, 255, 0), -1)
+        
+        save_path = os.path.join(save_dir, 'landmark_result.png')
+        cv2.imwrite(save_path, image)
+        self.get_logger().info(f"Saved visualized result to {save_path}")
+
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = GetLandmarksNode()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
