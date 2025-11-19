@@ -86,23 +86,57 @@ class GetLandmarksNode(Node):
     
     def get_landmarks(self, request, response):
         cv_image = None
+        cv_crop = None
         ros_image = None
+        diff = 1280-720
+        left_crop = int(1/4*diff)
+        right_crop = int(3/4*diff)
+
         with self.lock:
             if self.image is not None:
                 ros_image = self.image
                 cv_image = self.bridge.imgmsg_to_cv2(self.image, desired_encoding='bgr8')
+                # Crop
+                cv_crop = cv_image[:, left_crop:1280-right_crop]
+                # Rotate image 90 degrees counter clockwise
+                cv_crop = cv2.rotate(cv_crop, cv2.ROTATE_90_CLOCKWISE)
             else:
                 self.get_logger().warning("No image available yet for landmark detection")
                 return response  # return empty response gracefully
 
         # Run inference
-        final_preds = self.run_inference(cv_image)
+        final_preds = self.run_inference(cv_crop)
         landmarks_list = [Landmark(x=float(pair[0]), y=float(pair[1])) for pair in final_preds]
-        response.landmarks = landmarks_list
+        landmarks_list = [
+            landmarks_list[14],
+            landmarks_list[9],
+            landmarks_list[8],
+            landmarks_list[1],
+            landmarks_list[5],
+            landmarks_list[22],
+            landmarks_list[21],
+            landmarks_list[16]
+        ]
+
+        # Transform landmarks back to original image coordinates
+        crop_height = 720
+        landmarks_list_corrected = []
+        for lm in landmarks_list:
+            x_cropped = lm.y
+            y_cropped = crop_height - lm.x
+            
+            # Add the left crop offset to get back to original image coordinates
+            x_original = x_cropped + left_crop
+            y_original = y_cropped
+            
+            landmarks_list_corrected.append(Landmark(x=float(x_original), y=float(y_original)))
+        
+        response.landmarks = landmarks_list_corrected
         response.image = ros_image
         
         # Annotate and save image
-        self.annotate_image(cv_image, response.landmarks)
+        self.annotate_image(cv_crop, landmarks_list, "landmarks")
+        self.annotate_image(cv_image, landmarks_list_corrected, "landmarks_corrected")
         
         return response
         
@@ -136,7 +170,7 @@ class GetLandmarksNode(Node):
         landmarks = final_preds.tolist()
         return landmarks
 
-    def annotate_image(self, image, landmarks):
+    def annotate_image(self, image, landmarks, image_name):
         # Save to outermost directory (workspace root)
         workspace_root = '/home/anders/workspace/project_in_robotics_clothing_manipulation'
         
@@ -144,8 +178,13 @@ class GetLandmarksNode(Node):
             x = lm.x
             y = lm.y
             cv2.circle(image, (int(x), int(y)), 5, (0, 255, 0), -1)
+            # Put text label coordiantes next to landmark
+            cv2.putText(image, f"({int(x)},{int(y)})", (int(x)+5, int(y)-5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 0), 1)
+            # Also put landmark index
+            index = landmarks.index(lm)
+            cv2.putText(image, f"{index}", (int(x)-10, int(y)+15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
         
-        save_path = os.path.join(workspace_root, 'landmark_result.png')
+        save_path = os.path.join(workspace_root, image_name + '.png')
         cv2.imwrite(save_path, image)
         self.get_logger().info(f"Saved visualized result to {save_path}")
 

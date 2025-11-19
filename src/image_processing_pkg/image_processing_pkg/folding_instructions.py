@@ -83,6 +83,8 @@ def step_1_instructions(landmarks:np.ndarray,  fold_type:str='square') -> tuple[
         place_point_x = (landmarks[6].x - landmarks[3].x)*2/3 + landmarks[3].x
         place_point_y = (landmarks[6].y - landmarks[3].y)*2/3 + landmarks[3].y
         place_point = [place_point_x, place_point_y]
+        pick_point = [landmarks[0].x, landmarks[0].y]
+        place_point = [landmarks[1].x, landmarks[1].y]
     else:
         raise ValueError(f"Unknown fold type: {fold_type}")
 

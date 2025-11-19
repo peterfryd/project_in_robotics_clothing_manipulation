@@ -98,7 +98,7 @@ public:
             return 11;
         }
 
-        //std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Moved to home!");
 
         std::array<custom_interfaces_pkg::msg::Landmark, 8UL> landmarks;
