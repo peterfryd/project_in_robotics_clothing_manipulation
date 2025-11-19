@@ -18,8 +18,8 @@ SAVE_DIR = "./checkpoints"
 # Changed log and save paths to avoid overwriting your v2/v3 models
 LOG_DIR = "./runs/finetune_v1_logs"
 
-LR = 1e-4 # Base LR from your v1 script
-BACKBONE_LR = 1e-6 # A much smaller LR for the delicate backbone
+LR = 1e-5 # Base LR
+BACKBONE_LR = 1e-6 # Backbone LR
 EPOCHS = 500
 BATCH_SIZE = 16
 NUM_NEW_LANDMARKS = 8

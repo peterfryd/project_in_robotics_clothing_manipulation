@@ -11,18 +11,19 @@ from tqdm import tqdm
 import numpy as np
 
 # ==== CONFIG ====
-DATA_ROOT = "/home/peter/uni/clothing_ai/Data"
-SAVE_DIR = "./checkpoints"
-LOG_DIR = "./runs/landmark_logs"
+DATA_ROOT = "clothing_ai/data/Data_backbone"
+MODEL_DIR = "clothing_ai/checkpoints_backbone_resume"
+LOG_DIR = "clothing_ai/runs/backbone_resume"
 
 BATCH_SIZE = 64
 LR = 1e-4
 EPOCHS = 30             # number of *new* epochs to train
 IMG_SIZE = 224
 SAVE_EVERY = 1000
-RESUME_CHECKPOINT = os.path.join(SAVE_DIR, "model_step_9000.pth")  # path to checkpoint
+NUM_WORKERS = 64
+RESUME_CHECKPOINT = os.path.join(MODEL_DIR, "model_backbone_original.pth")  # path to checkpoint
 
-os.makedirs(SAVE_DIR, exist_ok=True)
+os.makedirs(MODEL_DIR, exist_ok=True)
 os.makedirs(LOG_DIR, exist_ok=True)
 
 # ==== DATASET ====
@@ -74,8 +75,8 @@ val_tfms = transforms.Compose([
 train_dataset = ShortSleeveLandmarkDataset(os.path.join(DATA_ROOT, "train"), transform=train_tfms)
 val_dataset = ShortSleeveLandmarkDataset(os.path.join(DATA_ROOT, "validation"), transform=val_tfms)
 
-train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
-val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=2)
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS)
+val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS)
 
 # ==== MODEL ====
 class LandmarkRegressor(nn.Module):
@@ -155,7 +156,7 @@ for epoch in range(start_epoch, start_epoch + EPOCHS):
         global_step += 1
 
         if global_step % SAVE_EVERY == 0:
-            ckpt_path = os.path.join(SAVE_DIR, f"model_step_{global_step}.pth")
+            ckpt_path = os.path.join(MODEL_DIR, f"model_step_{global_step}.pth")
             torch.save({
                 "epoch": epoch,
                 "global_step": global_step,
@@ -184,7 +185,7 @@ for epoch in range(start_epoch, start_epoch + EPOCHS):
     print(f"📝 Epoch {epoch+1} | Val Loss: {avg_val_loss:.4f} | Pixel Error: {avg_val_pixel_err:.2f}px")
 
 # ==== FINAL SAVE ====
-final_path = os.path.join(SAVE_DIR, "model_final_resumed.pth")
+final_path = os.path.join(MODEL_DIR, "model_final_resumed.pth")
 torch.save({
     "epoch": epoch,
     "global_step": global_step,

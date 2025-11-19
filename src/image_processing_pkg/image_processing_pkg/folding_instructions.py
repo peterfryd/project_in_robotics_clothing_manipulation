@@ -68,302 +68,188 @@ def load_background_image(image_name='background.png'):
     return img
 
 
-def step_1_instructions(cv_image, background):
-    foregroundd_mask, central_contour = segment_foreground(cv_image, background)
-    
-    hull_points = cv2.convexHull(central_contour)
-    hull_points = hull_points.reshape(-1, 2)
-
-    epsilon = 0.01 * cv2.arcLength(hull_points, True)
-    for i in range(100):
-        approx = cv2.approxPolyDP(hull_points, epsilon, True)
-        if len(approx) <= 4:
-            break
-        epsilon *= 1.05
-
-    if len(approx) < 4:
-        approx = approx[np.linspace(0, len(approx)-1, 6, dtype=int)]
-
-    rectangle = approx.reshape(-1, 2)
-
-    image_with_hull = cv_image.copy()
-    distances = []
-    for i in range(4):
-        pt1 = tuple(rectangle[i])
-        pt2 = tuple(rectangle[(i + 1) % 4])
-        distances.append(float(np.linalg.norm(np.array(pt1) - np.array(pt2))))
-        cv2.line(image_with_hull, pt1, pt2, (0, 0, 255), 2)
-
-    point_occurences = {}
-
-    indices = np.argsort(np.array(distances))[-3:]
-    for idx in indices:
-        pt1 = tuple(rectangle[idx])
-        pt2 = tuple(rectangle[(idx + 1) % 4])
-        if pt1 in point_occurences:
-            point_occurences[pt1] += 1
-        else:
-            point_occurences[pt1] = 1
-        
-        if pt2 in point_occurences:
-            point_occurences[pt2] += 1
-        else:
-            point_occurences[pt2] = 1
-            
-        cv2.line(image_with_hull, pt1, pt2, (0, 255, 0), 2)
-        
-    shirt_corners = [np.array(pt) for pt, count in point_occurences.items() if count > 1]
-
-    M = cv2.moments(central_contour)
-
-    if M["m00"] != 0:
-        cx = int(M["m10"] / M["m00"])
-        cy = int(M["m01"] / M["m00"])
+def step_1_instructions(landmarks:np.ndarray[float],  fold_type:str='star') -> tuple[np.ndarray[float], np.ndarray[float]]:
+    if fold_type == 'star':
+        # Pick point is landmark 3
+        # Place point is midpoint between landmark 1, 6 and 8
+        pick_point = landmarks[3]
+        place_point = (landmarks[1] + landmarks[6] + landmarks[8]) / 3
+    elif fold_type == 'square':
+        # Pick point is landmark 3
+        # Place point is two thirds between landmark 3 and 6
+        pick_point = landmarks[3]
+        place_point = (landmarks[6] - landmarks[3])*2/3 + landmarks[3]
     else:
-        cx, cy = 0, 0
+        raise ValueError(f"Unknown fold type: {fold_type}")
 
-    cv2.circle(image_with_hull, (cx, cy), 5, (255, 0, 0), -1)
-
-    pick_point = [0, 0]
-    place_point = [0, 0]
-    
-    if len(shirt_corners) >= 2:
-        mid_vec = np.array([cx, cy]) - shirt_corners[0]
-        pick_point= (np.round(shirt_corners[0] + 20 * (mid_vec / np.linalg.norm(mid_vec))).astype(int)).tolist()
-        
-        direction_vec = shirt_corners[1] - shirt_corners[0]
-        place_point = (np.round(shirt_corners[0] + 2/3 * direction_vec).astype(int)).tolist()
-        cv2.circle(image_with_hull, pick_point, 5, (255, 0, 0), -1)
-        cv2.circle(image_with_hull, place_point, 5, (0, 0, 255), -1)
-        
-    cv2.imwrite('/home/image_1_instructions.png', image_with_hull)
-    
     return pick_point, place_point
     
 
-def step_2_instructions(cv_image, background, step_1_place):
-    foreground_mask, central_contour = segment_foreground(cv_image, background)
-    
-    hull_points = cv2.convexHull(central_contour)
-    hull_points = hull_points.reshape(-1, 2)
+def step_2_instructions(landmarks:np.ndarray[float], landmarks_origional:np.ndarray[float], fold_type:str='star') -> tuple[np.ndarray[float], np.ndarray[float]]:
+    if fold_type == 'star':
+        # Pick point is landmark 6
+        # Place point is midpoint between landmark 6 and landmarks_origional 1
+        pick_point = landmarks[6]
+        place_point = (landmarks[6] - landmarks_origional[1])*0.5 + landmarks_origional[1]
+    elif fold_type == 'square':
+        # Pick point is landmark 1
+        # Place point is two thirds from landmark_origional 1 to 8
+        pick_point = landmarks[1]
+        place_point = (landmarks_origional[8] - landmarks_origional[1])*2/3 + landmarks_origional[1]
+    else:
+        raise ValueError(f"Unknown fold type: {fold_type}")
 
-    epsilon = 0.01 * cv2.arcLength(hull_points, True)
-    for i in range(100):
-        approx = cv2.approxPolyDP(hull_points, epsilon, True)
-        if len(approx) <= 4:
-            break
-        epsilon *= 1.05
+    return pick_point, place_point
 
-    if len(approx) < 4:
-        approx = approx[np.linspace(0, len(approx)-1, 6, dtype=int)]
 
-    rectangle = approx.reshape(-1, 2)
-
-    image_with_hull = cv_image.copy()
-    
-    min_dist = inf
-    pick_point = [0, 0]
-    
-    for pt in rectangle:
-        dist = np.linalg.norm(pt - step_1_place)
-        if dist < min_dist:
-            min_dist = dist
-            pick_point = pt
-    
-    remaining_pts = np.array([pt for pt in rectangle if not np.allclose(pt, pick_point)])
-    max_dist = -inf
-    
-    for i in range(len(remaining_pts)):
-        for j in range(i + 1, len(remaining_pts)):
-            dist = np.linalg.norm(remaining_pts[i] - remaining_pts[j])
-            if dist > max_dist:
-                max_dist = dist
-                p1, p2 = remaining_pts[i], remaining_pts[j]
-
-    p1, p2 = np.array(p1, dtype=float), np.array(p2, dtype=float)
-
-    v = p2 - p1
-    place_point = (p1 + (p2-p1) / 2).astype(int).tolist()
-    
-    cv2.circle(image_with_hull, place_point, 5, (0, 0, 255), -1)
-    cv2.circle(image_with_hull, pick_point, 5, (255, 0, 0), -1)
-        
-    cv2.imwrite('/home/image_2_instructions.png', image_with_hull)
+def step_3_instructions(landmarks:np.ndarray[float], landmarks_origional:np.ndarray[float], fold_type:str='star') -> tuple[np.ndarray[float], np.ndarray[float]]:
+    if fold_type == 'star':
+        # Pick point is landmark 1
+        # Place point is the midpoint between landmark 1 and landmarks_origional 6
+        pick_point = landmarks[1]
+        place_point = (landmarks_origional[6] - landmarks[1])*0.5 + landmarks[1]
+    elif fold_type == 'square':
+        # Pick point is landmark 6
+        # Place point is landmarks_origional 4
+        pick_point = landmarks[6]
+        place_point = landmarks_origional[4]
+    else:
+        raise ValueError(f"Unknown fold type: {fold_type}")
     
     return pick_point, place_point
 
-def step_3_instructions(cv_image, background):
-    foreground_mask, central_contour = segment_foreground(cv_image, background)
-    
-    hull_points = cv2.convexHull(central_contour)
-    hull_points = hull_points.reshape(-1, 2)
 
-    epsilon = 0.01 * cv2.arcLength(hull_points, True)
-    for i in range(100):
-        approx = cv2.approxPolyDP(hull_points, epsilon, True)
-        if len(approx) <= 3:
-            break
-        epsilon *= 1.05
-
-    if len(approx) < 3:
-        approx = approx[np.linspace(0, len(approx)-1, 6, dtype=int)]
-
-    triangle = approx.reshape(-1, 2)
-
-    image_with_hull = cv_image.copy()
-    min_dist = inf
-    pt1 = [0,0]
-    pt2 = [0,0]
-    
-    for i in range(len(triangle)):
-        for j in range(i + 1, len(triangle)):
-            dist = np.linalg.norm(triangle[i] - triangle[j])
-            if dist < min_dist:
-                min_dist = dist
-                p1, p2 = triangle[i], triangle[j]
-    
-    pick_point = p2
-    place_point = (p2 + 0.5 * (p1 - p2)).astype(int)
-
-    cv2.circle(image_with_hull, place_point, 5, (0, 0, 255), -1)
-    cv2.circle(image_with_hull, pick_point, 5, (255, 0, 0), -1)
-        
-    cv2.imwrite('/home/image_3_instructions.png', image_with_hull)
+def step_4_instructions(landmarks:np.ndarray[float], landmarks_origional:np.ndarray[float], fold_type:str='star') -> tuple[np.ndarray[float], np.ndarray[float]]:
+    if fold_type == 'star':
+        # Pick point is landmark 8
+        # Place point is midpoint between landmark 8 and 3
+        pick_point = landmarks[8]
+        place_point = (landmarks_origional[8] - landmarks_origional[3])*0.5 + landmarks_origional[3]
+    elif fold_type == 'square':
+        # Pick point is landmark 8
+        # Place point is point two thirds from landmarks_origional 8 to 1
+        pick_point = landmarks[8]
+        place_point = (landmarks_origional[1] - landmarks_origional[8])*2/3 + landmarks_origional[8]
+    else:
+        raise ValueError(f"Unknown fold type: {fold_type}")
     
     return pick_point, place_point
 
-def step_4_instructions(cv_image, background, step_3_pick, step_3_place):
-    foreground_mask, central_contour = segment_foreground(cv_image, background)
-    
-    hull_points = cv2.convexHull(central_contour)
-    hull_points = hull_points.reshape(-1, 2)
 
-    epsilon = 0.01 * cv2.arcLength(hull_points, True)
-    for i in range(100):
-        approx = cv2.approxPolyDP(hull_points, epsilon, True)
-        if len(approx) <= 4:
-            break
-        epsilon *= 1.05
-
-    if len(approx) < 4:
-        approx = approx[np.linspace(0, len(approx)-1, 6, dtype=int)]
-
-    rectangle = approx.reshape(-1, 2)
-
-    image_with_hull = cv_image.copy()
+def step_5_instructions(landmarks:np.ndarray[float], landmarks_origional:np.ndarray[float], fold_type:str='star') -> tuple[np.ndarray[float], np.ndarray[float]]:
+    if fold_type == 'star':
+        print("Star fold only has 4 steps")
+        return None, None
+    elif fold_type == 'square':
+        # Pick point is between landmarks_origional 1 and 8
+        # Place point is between landmarks_origional 4 and 5
+        pick_point = (landmarks_origional[1] - landmarks_origional[8])*0.5 + landmarks_origional[8]
+        place_point = (landmarks_origional[4] - landmarks_origional[5])*0.5 + landmarks_origional[5]
+    else:
+        raise ValueError(f"Unknown fold type: {fold_type}")
     
-    place_point = [0, 0]
-    min_dist_pick = inf
-    
-    for pt in rectangle:
-        dist_pick = np.linalg.norm(pt - step_3_pick)
-        if dist_pick < min_dist_pick:
-            min_dist_pick = dist_pick
-            place_point = pt.tolist()
-    
-    pick_point = [0, 0]
-    
-    remaining_pts = np.array([pt for pt in rectangle if not np.allclose(pt, place_point)])
-    
-    pick_point = [0, 0]
-    min_dist_place = inf
-    
-    for pt in remaining_pts:
-        dist_place = np.linalg.norm(pt - step_3_place)
-        if dist_pick < min_dist_place:
-            min_dist_place = dist_place
-            pick_point = pt.tolist()
-    
-    cv2.circle(image_with_hull, place_point, 5, (0, 0, 255), -1)
-    cv2.circle(image_with_hull, pick_point, 5, (255, 0, 0), -1)
-        
-    cv2.imwrite('/home/image_4_instructions.png', image_with_hull)
     return pick_point, place_point
-
-def step_5_instructions(cv_image, background, place_point_4):
-    foregroundd_mask, central_contour = segment_foreground(cv_image, background)
-    
-    hull_points = cv2.convexHull(central_contour)
-    hull_points = hull_points.reshape(-1, 2)
-
-    epsilon = 0.01 * cv2.arcLength(hull_points, True)
-    for i in range(100):
-        approx = cv2.approxPolyDP(hull_points, epsilon, True)
-        if len(approx) <= 4:
-            break
-        epsilon *= 1.05
-
-    if len(approx) < 4:
-        approx = approx[np.linspace(0, len(approx)-1, 6, dtype=int)]
-
-    rectangle = approx.reshape(-1, 2)
-
-    image_with_hull = cv_image.copy()
-    
-    min_dist_pick = inf
-    
-    pt1 = None
-    pt2 = None
-    
-    for pt in rectangle:
-        cv2.circle(image_with_hull, pt, 5, (0, 255, 255), -1)
-        dist_pick = np.linalg.norm(pt - place_point_4)
-        if dist_pick < min_dist_pick:
-            min_dist_pick = dist_pick
-            pt1 = pt
-    
-    
-    remaining_pts = np.array([pt for pt in rectangle if not np.allclose(pt, pt1)])
-    
-    pick_point = [0, 0]
-    min_dist_place = inf
-    
-    for pt in remaining_pts:
-        dist_place = np.linalg.norm(pt - pt1)
-        if dist_pick < min_dist_place:
-            min_dist_place = dist_place
-            pt2 = pt
-    
-    mid_point_pick = (pt2 + pt1) / 2
-    
-    rectangle_mid = np.mean(rectangle, axis=0)
-    
-    pick_point =(mid_point_pick + 50 * (rectangle_mid - mid_point_pick)/(np.linalg.norm(rectangle_mid - mid_point_pick)))
-    
-    
-    last_two_points  = np.array([pt for pt in remaining_pts if not np.allclose(pt, pt2)])
-    
-    place_point = np.mean(last_two_points, axis = 0)
-    
-    
-    rectangle_mid = np.astype(rectangle_mid, int)
-    pick_point = np.astype(pick_point, int)
-    place_point = np.astype(place_point, int)
-    
-    cv2.circle(image_with_hull, rectangle_mid.tolist(), 5, (0, 0, 255), -1)
-    cv2.circle(image_with_hull, place_point, 5, (0, 0, 255), -1)
-    cv2.circle(image_with_hull, pick_point, 5, (255, 0, 0), -1)
-        
-    cv2.imwrite('/home/image_5_instructions.png', image_with_hull)
-    return pick_point, place_point
-    
-
 
 
 def main():
-    cv_image_1 = cv2.imread("/home/peter/uni/project_clothing_fresh/image_analysis/images/1.png")
-    cv_image_2 = cv2.imread("/home/peter/uni/project_clothing_fresh/image_analysis/images/2.png")
-    cv_image_3 = cv2.imread("/home/peter/uni/project_clothing_fresh/image_analysis/images/3.png")
-    cv_image_4 = cv2.imread("/home/peter/uni/project_clothing_fresh/image_analysis/images/4.png")
-    cv_image_5 = cv2.imread("/home/peter/uni/project_clothing_fresh/image_analysis/images/5.png")
+    FOLD_TYPE = 'square'  # 'star' or 'square'
+
+
+
+    if FOLD_TYPE not in ['star', 'square']:
+        raise ValueError(f"Unknown fold type: {FOLD_TYPE}")
+    images_path = f"saved_images/{FOLD_TYPE}_fold"
+    cv_image_1 = cv2.imread(images_path + "/image_1.png")
+    cv_image_2 = cv2.imread(images_path + "/image_2.png")
+    cv_image_3 = cv2.imread(images_path + "/image_3.png")
+    cv_image_4 = cv2.imread(images_path + "/image_4.png")
+    cv_image_5 = cv2.imread(images_path + "/image_5.png")
+    cv_image_6 = cv2.imread(images_path + "/image_6.png")
     
-    back_ground = cv2.imread("/home/peter/uni/project_clothing_fresh/image_analysis/images/background.png")
+
+    # Square fold landmarks
+    if FOLD_TYPE == 'square':
+        landmarks = np.array([
+            [0,0],
+            [880, 550],
+            [440, 650],
+            [310, 710],
+            [200, 450],
+            [200, 300],
+            [275, 10],
+            [420, 50],
+            [840, 50]
+        ])
+    # Star fold landmarks
+    else:
+        landmarks = np.array([
+                  [0,0],
+            [810, 600],
+            [380, 650],
+            [250, 710],
+            [150, 430],
+            [160, 280],
+            [220, 40],
+            [380, 60],
+            [880, 100]
+        ])
     
-    pick_point_1, place_point_1 = step_1_instructions(cv_image_1, back_ground)
-    pick_point_2, place_point_2 = step_2_instructions(cv_image_2, back_ground, pick_point_1)
-    pick_point_3, place_point_3 = step_3_instructions(cv_image_3, back_ground)
-    pick_point_4, place_point_4 = step_4_instructions(cv_image_4, back_ground, pick_point_3, place_point_3)
-    pick_point_5, place_point_5 = step_5_instructions(cv_image_5, back_ground, place_point_4)
+    landmarks_origional = landmarks.copy()
+
+    for point in landmarks:
+        for image in [cv_image_1, cv_image_2, cv_image_3, cv_image_4, cv_image_5]:
+            cv2.circle(image, tuple(point.astype(int)), 5, (100, 100, 100), -1)
+
+    # get pick points for step 1
+    pick_point_1, place_point_1 = step_1_instructions(landmarks, fold_type=FOLD_TYPE)
+    # Plot pickpoint on image
+    cv2.circle(cv_image_1, tuple(pick_point_1.astype(int)), 10, (0, 255, 0), -1)
+    cv2.circle(cv_image_1, tuple(place_point_1.astype(int)), 10, (255, 0, 0), -1)
+    cv2.imshow("Image 1 with pick point", cv_image_1)
+    cv2.waitKey(0)
+
+    # get pick points for step 2
+    pick_point_2, place_point_2 = step_2_instructions(landmarks, landmarks_origional, fold_type=FOLD_TYPE)
+    # Plot pickpoint on image
+    cv2.circle(cv_image_2, tuple(pick_point_2.astype(int)), 10, (0, 255, 0), -1)
+    cv2.circle(cv_image_2, tuple(place_point_2.astype(int)), 10, (255, 0, 0), -1)
+    cv2.imshow("Image 2 with pick point", cv_image_2)
+    cv2.waitKey(0)
+
+    # get pick points for step 3
+    pick_point_3, place_point_3 = step_3_instructions(landmarks, landmarks_origional, fold_type=FOLD_TYPE)
+    # Plot pickpoint on image
+    cv2.circle(cv_image_3, tuple(pick_point_3.astype(int)), 10, (0, 255, 0), -1)
+    cv2.circle(cv_image_3, tuple(place_point_3.astype(int)), 10, (255, 0, 0), -1)
+    cv2.imshow("Image 3 with pick point", cv_image_3)
+    cv2.waitKey(0)
+
+    # get pick points for step 4
+    pick_point_4, place_point_4 = step_4_instructions(landmarks, landmarks_origional, fold_type=FOLD_TYPE)
+    # Plot pickpoint on image
+    cv2.circle(cv_image_4, tuple(pick_point_4.astype(int)), 10, (0, 255, 0), -1)
+    cv2.circle(cv_image_4, tuple(place_point_4.astype(int)), 10, (255, 0, 0), -1)
+    cv2.imshow("Image 4 with pick point", cv_image_4)
+    cv2.waitKey(0)
+    
+    # get pick points for step 5
+    pick_point_5, place_point_5 = step_5_instructions(landmarks, landmarks_origional, fold_type=FOLD_TYPE)
+    # Plot pickpoint on image
+    if FOLD_TYPE == 'square':
+        cv2.circle(cv_image_5, tuple(pick_point_5.astype(int)), 10, (0, 255, 0), -1)
+        cv2.circle(cv_image_5, tuple(place_point_5.astype(int)), 10, (255, 0, 0), -1)
+        cv2.imshow("Image 5 with pick point", cv_image_5)
+    cv2.imshow("Image 5", cv_image_5)
+    cv2.waitKey(0)
+
+    if FOLD_TYPE == 'star':
+        return
+    
+    cv2.imshow("Image 6", cv_image_6)
+    cv2.waitKey(0)
+
+
+    
     
 if __name__ == "__main__":
     main()

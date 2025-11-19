@@ -5,6 +5,7 @@
 /install/
 /log/
 runs/finetune_logs/*
+runs/
 
 # Ignore virtual environment
 /env/
@@ -17,6 +18,7 @@ clothing_ai/data/images/*.png
 clothing_ai/data/augmented_images/*.png
 clothing_ai/data/augmented_annos/*
 clothing_ai/data/val_images/*.png
+clothing_ai/data/deepFashion2/*
 
 # Colcon-specific
 colcon-core.log
