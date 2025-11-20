@@ -33,12 +33,12 @@ def project_point(image_point, homography):
 
 if __name__ == "__main__":
     # Generating homography
-    csv_path = "/home/peter/uni/project_clothing_fresh/src/image_processing_pkg/homography_generation/data_points.csv"
+    csv_path = "data_points_new.csv"
     robot_points, image_points = load_correspondences(csv_path)
     H = compute_homography(robot_points, image_points)
     print("The generated homography is: \n", H)
     
     # Testing homography
-    test_image_point = np.array([730, 506])
+    test_image_point = np.array([873, 628])
     x,y = project_point(test_image_point, H)
     print(f"\n The image point (u,v): ({test_image_point[0]}, {test_image_point[1]}) is mapped to the robot base at (x,y): ({x:.3f},{y:.3f})")
