@@ -6,66 +6,66 @@ import cv2
 from ament_index_python.packages import get_package_share_directory
 import numpy as np
 
-def segment_foreground(image, background):
-    """
-    Segment the foreground of an image
-    """
+# def segment_foreground(image, background):
+#     """
+#     Segment the foreground of an image
+#     """
     
-    hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    h,s,v = cv2.split(hsv_image)
+#     hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+#     h,s,v = cv2.split(hsv_image)
 
-    white_mask = cv2.inRange(background, (255, 255, 255), (255, 255, 255))
-    s[white_mask == 255] = 0
+#     white_mask = cv2.inRange(background, (255, 255, 255), (255, 255, 255))
+#     s[white_mask == 255] = 0
     
-    blur = cv2.GaussianBlur(s, (11,11), 0)
+#     blur = cv2.GaussianBlur(s, (11,11), 0)
 
-    _, thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+#     _, thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
-    thresh = cv2.bitwise_not(thresh)
+#     thresh = cv2.bitwise_not(thresh)
 
-    kernel = np.ones((11,11), np.uint8)
-    clean = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=2)
-    clean = cv2.bitwise_not(clean)
+#     kernel = np.ones((11,11), np.uint8)
+#     clean = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=2)
+#     clean = cv2.bitwise_not(clean)
 
-    contours, _ = cv2.findContours(clean, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    central_contour = None
+#     contours, _ = cv2.findContours(clean, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+#     central_contour = None
     
-    if contours:
-        h_img, w_img = image.shape[:2]
-        image_center = np.array([w_img / 2, h_img / 2])
+#     if contours:
+#         h_img, w_img = image.shape[:2]
+#         image_center = np.array([w_img / 2, h_img / 2])
 
-        min_dist = float('inf')
-        central_contour = None
+#         min_dist = float('inf')
+#         central_contour = None
 
-        for cnt in contours:
-            M = cv2.moments(cnt)
-            if M["m00"] != 0:
-                cx = int(M["m10"] / M["m00"])
-                cy = int(M["m01"] / M["m00"])
-                centroid = np.array([cx, cy])
-                dist = np.linalg.norm(centroid - image_center)
-                if dist < min_dist:
-                    min_dist = dist
-                    central_contour = cnt
+#         for cnt in contours:
+#             M = cv2.moments(cnt)
+#             if M["m00"] != 0:
+#                 cx = int(M["m10"] / M["m00"])
+#                 cy = int(M["m01"] / M["m00"])
+#                 centroid = np.array([cx, cy])
+#                 dist = np.linalg.norm(centroid - image_center)
+#                 if dist < min_dist:
+#                     min_dist = dist
+#                     central_contour = cnt
 
-    foregroundd_mask = np.zeros(image.shape[:2], dtype=np.uint8)
-    cv2.drawContours(foregroundd_mask, [central_contour], -1, 255, -1)
+#     foregroundd_mask = np.zeros(image.shape[:2], dtype=np.uint8)
+#     cv2.drawContours(foregroundd_mask, [central_contour], -1, 255, -1)
     
-    return foregroundd_mask, central_contour
+#     return foregroundd_mask, central_contour
 
 
-def load_background_image(image_name='background.png'):
-    """
-    Load the background image
-    """
+# def load_background_image(image_name='background.png'):
+#     """
+#     Load the background image
+#     """
     
-    pkg_path = get_package_share_directory('image_processing_pkg')
-    image_path = os.path.join(pkg_path, 'data', image_name)
+#     pkg_path = get_package_share_directory('image_processing_pkg')
+#     image_path = os.path.join(pkg_path, 'data', image_name)
     
-    img = cv2.imread(image_path, cv2.IMREAD_COLOR)
-    if img is None:
-        raise FileNotFoundError(f"Could not load image at {image_path}")
-    return img
+#     img = cv2.imread(image_path, cv2.IMREAD_COLOR)
+#     if img is None:
+#         raise FileNotFoundError(f"Could not load image at {image_path}")
+#     return img
 
 
 def step_1_instructions(landmarks:np.ndarray,  fold_type:str='square') -> tuple[list, list]:
@@ -89,13 +89,13 @@ def step_1_instructions(landmarks:np.ndarray,  fold_type:str='square') -> tuple[
     return pick_point, place_point
     
 
-def step_2_instructions(landmarks:np.ndarray, landmarks_origional:np.ndarray, fold_type:str='square') -> tuple[np.ndarray, np.ndarray]:
+def step_2_instructions(landmarks:np.ndarray, fold_type:str='square') -> tuple[list, list]:
     if fold_type == 'star':
         # Pick point is landmark 6
         # Place point is midpoint between landmark 6 and landmarks_origional 1
         pick_point = [landmarks[5].x, landmarks[5].y]
-        place_point_x = (landmarks[5].x - landmarks_origional[0].x)*0.5 + landmarks_origional[0].x
-        place_point_y = (landmarks[5].y - landmarks_origional[0].y)*0.5 + landmarks_origional[0].y
+        place_point_x = (landmarks[5].x - landmarks[0].x)*0.5 + landmarks[0].x
+        place_point_y = (landmarks[5].y - landmarks[0].y)*0.5 + landmarks[0].y
         place_point = [place_point_x, place_point_y]
     elif fold_type == 'square':
         # Pick point is landmark 1
@@ -103,8 +103,8 @@ def step_2_instructions(landmarks:np.ndarray, landmarks_origional:np.ndarray, fo
         pick_point_x = (landmarks[7].x - landmarks[0].x)*0.1 + landmarks[0].x
         pick_point_y = (landmarks[7].y - landmarks[0].y)*0.1 + landmarks[0].y
         pick_point = [pick_point_x, pick_point_y]
-        place_point_x = (landmarks_origional[7].x - landmarks_origional[0].x)*2/3 + landmarks_origional[0].x
-        place_point_y = (landmarks_origional[7].y - landmarks_origional[0].y)*2/3 + landmarks_origional[0].y
+        place_point_x = (landmarks[7].x - landmarks[0].x)*2/3 + landmarks[0].x
+        place_point_y = (landmarks[7].y - landmarks[0].y)*2/3 + landmarks[0].y
         place_point = [place_point_x, place_point_y]
     else:
         raise ValueError(f"Unknown fold type: {fold_type}")
@@ -112,20 +112,20 @@ def step_2_instructions(landmarks:np.ndarray, landmarks_origional:np.ndarray, fo
     return pick_point, place_point
 
 
-def step_3_instructions(landmarks:np.ndarray, landmarks_origional:np.ndarray, fold_type:str='square') -> tuple[np.ndarray, np.ndarray]:
+def step_3_instructions(landmarks:np.ndarray, fold_type:str='square') -> tuple[list, list]:
     if fold_type == 'star':
         # Pick point is landmark 1
         # Place point is the midpoint between landmark 1 and landmarks_origional 6
         pick_point = [landmarks[0].x, landmarks[0].y]
-        place_point_x = (landmarks_origional[5].x - landmarks[0].x)*0.5 + landmarks[0].x
-        place_point_y = (landmarks_origional[5].y - landmarks[0].y)*0.5 + landmarks[0].y
+        place_point_x = (landmarks[5].x - landmarks[0].x)*0.5 + landmarks[0].x
+        place_point_y = (landmarks[5].y - landmarks[0].y)*0.5 + landmarks[0].y
         place_point = [place_point_x, place_point_y]
     elif fold_type == 'square':
         # Pick point is landmark 6
         # Place point is landmarks_origional 4
         pick_point = [landmarks[5].x, landmarks[5].y] 
-        place_point_x = landmarks_origional[3].x
-        place_point_y = landmarks_origional[3].y
+        place_point_x = landmarks[3].x
+        place_point_y = landmarks[3].y
         place_point = [place_point_x, place_point_y]
     else:
         raise ValueError(f"Unknown fold type: {fold_type}")
@@ -133,13 +133,13 @@ def step_3_instructions(landmarks:np.ndarray, landmarks_origional:np.ndarray, fo
     return pick_point, place_point
 
 
-def step_4_instructions(landmarks:np.ndarray, landmarks_origional:np.ndarray, fold_type:str='square') -> tuple[np.ndarray, np.ndarray]:
+def step_4_instructions(landmarks:np.ndarray, fold_type:str='square') -> tuple[list, list]:
     if fold_type == 'star':
         # Pick point is landmark 8
         # Place point is midpoint between landmark 8 and 3
         pick_point = [landmarks[7].x, landmarks[7].y]
-        place_point_x = (landmarks_origional[7].x - landmarks_origional[2].x)*0.5 + landmarks_origional[2].x
-        place_point_y = (landmarks_origional[7].y - landmarks_origional[2].y)*0.5 + landmarks_origional[2].y
+        place_point_x = (landmarks[7].x - landmarks[2].x)*0.5 + landmarks[2].x
+        place_point_y = (landmarks[7].y - landmarks[2].y)*0.5 + landmarks[2].y
         place_point = [place_point_x, place_point_y]
     elif fold_type == 'square':
         # Pick point is landmark 8
@@ -147,8 +147,8 @@ def step_4_instructions(landmarks:np.ndarray, landmarks_origional:np.ndarray, fo
         pick_point_x = (landmarks[0].x - landmarks[7].x)*0.1 + landmarks[7].x
         pick_point_y = (landmarks[0].y - landmarks[7].y)*0.1 + landmarks[7].y
         pick_point = [pick_point_x, pick_point_y]
-        place_point_x = (landmarks_origional[0].x - landmarks_origional[7].x)*2/3 + landmarks_origional[7].x
-        place_point_y = (landmarks_origional[0].y - landmarks_origional[7].y)*2/3 + landmarks_origional[7].y
+        place_point_x = (landmarks[0].x - landmarks[7].x)*2/3 + landmarks[7].x
+        place_point_y = (landmarks[0].y - landmarks[7].y)*2/3 + landmarks[7].y
         place_point = [place_point_x, place_point_y]
 
     else:
@@ -157,18 +157,18 @@ def step_4_instructions(landmarks:np.ndarray, landmarks_origional:np.ndarray, fo
     return pick_point, place_point
 
 
-def step_5_instructions(landmarks:np.ndarray, landmarks_origional:np.ndarray, fold_type:str='square') -> tuple[np.ndarray, np.ndarray] | None:
+def step_5_instructions(landmarks:np.ndarray, fold_type:str='square') -> tuple[list, list] | None:
     if fold_type == 'star':
         print("Star fold only has 4 steps")
         return None
     elif fold_type == 'square':
         # Pick point is between landmarks_origional 1 and 8
         # Place point is between landmarks_origional 4 and 5
-        pick_point_x = (landmarks_origional[0].x - landmarks_origional[7].x)*0.5 + landmarks_origional[7].x
-        pick_point_y = (landmarks_origional[0].y - landmarks_origional[7].y)*0.5 + landmarks_origional[7].y
+        pick_point_x = (landmarks[0].x - landmarks[7].x)*0.5 + landmarks[7].x
+        pick_point_y = (landmarks[0].y - landmarks[7].y)*0.5 + landmarks[7].y
         pick_point = [pick_point_x, pick_point_y]
-        place_point_x = (landmarks_origional[3].x - landmarks_origional[4].x)*0.5 + landmarks_origional[4].x
-        place_point_y = (landmarks_origional[3].y - landmarks_origional[4].y)*0.5 + landmarks_origional[4].y
+        place_point_x = (landmarks[3].x - landmarks[4].x)*0.5 + landmarks[4].x
+        place_point_y = (landmarks[3].y - landmarks[4].y)*0.5 + landmarks[4].y
         place_point = [place_point_x, place_point_y]
     else:
         raise ValueError(f"Unknown fold type: {fold_type}")
@@ -221,57 +221,61 @@ def main():
     
     landmarks_origional = landmarks.copy()
 
-    for point in landmarks:
-        for image in [cv_image_1, cv_image_2, cv_image_3, cv_image_4, cv_image_5]:
-            cv2.circle(image, tuple(point.astype(int)), 5, (100, 100, 100), -1)
+    # Plot all landmarks on images
+    # Make tmp convert to np array
 
-    # get pick points for step 1
-    pick_point_1, place_point_1 = step_1_instructions(landmarks, fold_type=FOLD_TYPE)
-    # Plot pickpoint on image
-    cv2.circle(cv_image_1, tuple(pick_point_1.astype(int)), 10, (0, 255, 0), -1)
-    cv2.circle(cv_image_1, tuple(place_point_1.astype(int)), 10, (255, 0, 0), -1)
-    cv2.imshow("Image 1 with pick point", cv_image_1)
-    cv2.waitKey(0)
 
-    # get pick points for step 2
-    pick_point_2, place_point_2 = step_2_instructions(landmarks, landmarks_origional, fold_type=FOLD_TYPE)
-    # Plot pickpoint on image
-    cv2.circle(cv_image_2, tuple(pick_point_2.astype(int)), 10, (0, 255, 0), -1)
-    cv2.circle(cv_image_2, tuple(place_point_2.astype(int)), 10, (255, 0, 0), -1)
-    cv2.imshow("Image 2 with pick point", cv_image_2)
-    cv2.waitKey(0)
+    # for point in landmarks:
+    #     for image in [cv_image_1, cv_image_2, cv_image_3, cv_image_4, cv_image_5]:
+    #         cv2.circle(image, tuple(point.astype(int)), 5, (100, 100, 100), -1)
 
-    # get pick points for step 3
-    pick_point_3, place_point_3 = step_3_instructions(landmarks, landmarks_origional, fold_type=FOLD_TYPE)
-    # Plot pickpoint on image
-    cv2.circle(cv_image_3, tuple(pick_point_3.astype(int)), 10, (0, 255, 0), -1)
-    cv2.circle(cv_image_3, tuple(place_point_3.astype(int)), 10, (255, 0, 0), -1)
-    cv2.imshow("Image 3 with pick point", cv_image_3)
-    cv2.waitKey(0)
+    # # get pick points for step 1
+    # pick_point_1, place_point_1 = step_1_instructions(landmarks, fold_type=FOLD_TYPE)
+    # # Plot pickpoint on image
+    # cv2.circle(cv_image_1, tuple(pick_point_1.astype(int)), 10, (0, 255, 0), -1)
+    # cv2.circle(cv_image_1, tuple(place_point_1.astype(int)), 10, (255, 0, 0), -1)
+    # cv2.imshow("Image 1 with pick point", cv_image_1)
+    # cv2.waitKey(0)
 
-    # get pick points for step 4
-    pick_point_4, place_point_4 = step_4_instructions(landmarks, landmarks_origional, fold_type=FOLD_TYPE)
-    # Plot pickpoint on image
-    cv2.circle(cv_image_4, tuple(pick_point_4.astype(int)), 10, (0, 255, 0), -1)
-    cv2.circle(cv_image_4, tuple(place_point_4.astype(int)), 10, (255, 0, 0), -1)
-    cv2.imshow("Image 4 with pick point", cv_image_4)
-    cv2.waitKey(0)
+    # # get pick points for step 2
+    # pick_point_2, place_point_2 = step_2_instructions(landmarks, landmarks_origional, fold_type=FOLD_TYPE)
+    # # Plot pickpoint on image
+    # cv2.circle(cv_image_2, tuple(pick_point_2.astype(int)), 10, (0, 255, 0), -1)
+    # cv2.circle(cv_image_2, tuple(place_point_2.astype(int)), 10, (255, 0, 0), -1)
+    # cv2.imshow("Image 2 with pick point", cv_image_2)
+    # cv2.waitKey(0)
+
+    # # get pick points for step 3
+    # pick_point_3, place_point_3 = step_3_instructions(landmarks, landmarks_origional, fold_type=FOLD_TYPE)
+    # # Plot pickpoint on image
+    # cv2.circle(cv_image_3, tuple(pick_point_3.astype(int)), 10, (0, 255, 0), -1)
+    # cv2.circle(cv_image_3, tuple(place_point_3.astype(int)), 10, (255, 0, 0), -1)
+    # cv2.imshow("Image 3 with pick point", cv_image_3)
+    # cv2.waitKey(0)
+
+    # # get pick points for step 4
+    # pick_point_4, place_point_4 = step_4_instructions(landmarks, landmarks_origional, fold_type=FOLD_TYPE)
+    # # Plot pickpoint on image
+    # cv2.circle(cv_image_4, tuple(pick_point_4.astype(int)), 10, (0, 255, 0), -1)
+    # cv2.circle(cv_image_4, tuple(place_point_4.astype(int)), 10, (255, 0, 0), -1)
+    # cv2.imshow("Image 4 with pick point", cv_image_4)
+    # cv2.waitKey(0)
     
-    # get pick points for step 5
-    pick_point_5, place_point_5 = step_5_instructions(landmarks, landmarks_origional, fold_type=FOLD_TYPE)
-    # Plot pickpoint on image
-    if FOLD_TYPE == 'square':
-        cv2.circle(cv_image_5, tuple(pick_point_5.astype(int)), 10, (0, 255, 0), -1)
-        cv2.circle(cv_image_5, tuple(place_point_5.astype(int)), 10, (255, 0, 0), -1)
-        cv2.imshow("Image 5 with pick point", cv_image_5)
-    cv2.imshow("Image 5", cv_image_5)
-    cv2.waitKey(0)
+    # # get pick points for step 5
+    # pick_point_5, place_point_5 = step_5_instructions(landmarks, landmarks_origional, fold_type=FOLD_TYPE)
+    # # Plot pickpoint on image
+    # if FOLD_TYPE == 'square':
+    #     cv2.circle(cv_image_5, tuple(pick_point_5.astype(int)), 10, (0, 255, 0), -1)
+    #     cv2.circle(cv_image_5, tuple(place_point_5.astype(int)), 10, (255, 0, 0), -1)
+    #     cv2.imshow("Image 5 with pick point", cv_image_5)
+    # cv2.imshow("Image 5", cv_image_5)
+    # cv2.waitKey(0)
 
-    if FOLD_TYPE == 'star':
-        return
+    # if FOLD_TYPE == 'star':
+    #     return
     
-    cv2.imshow("Image 6", cv_image_6)
-    cv2.waitKey(0)
+    # cv2.imshow("Image 6", cv_image_6)
+    # cv2.waitKey(0)
 
 
     

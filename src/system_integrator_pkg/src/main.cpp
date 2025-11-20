@@ -102,6 +102,7 @@ public:
         RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Moved to home!");
 
         std::array<custom_interfaces_pkg::msg::Landmark, 8UL> landmarks;
+        std::string landmarks_file = "/tmp/landmarks.bin";
 
         if(step == 1){
             // Get landmarks
@@ -121,6 +122,29 @@ public:
             std::string landmarks_type = typeid(get_landmarks_result).name();
             RCLCPP_INFO(this->get_logger(), "get_landmarks_result: %s", landmarks_type.c_str());
             RCLCPP_INFO(this->get_logger(), "Landmark 0: x = %f, y = %f", get_landmarks_result->landmarks[0].x, get_landmarks_result->landmarks[0].y);
+            
+            // Save landmarks to file
+            std::ofstream ofs(landmarks_file, std::ios::binary);
+            if (!ofs) {
+                RCLCPP_ERROR(this->get_logger(), "Failed to open file for writing landmarks");
+                return 12;
+            }
+            ofs.write(reinterpret_cast<const char*>(landmarks.data()), landmarks.size() * sizeof(custom_interfaces_pkg::msg::Landmark));
+            ofs.close();
+            RCLCPP_INFO(this->get_logger(), "Saved landmarks to %s", landmarks_file.c_str());
+        }
+        else {
+            // Load landmarks from file
+            std::ifstream ifs(landmarks_file, std::ios::binary);
+            if (!ifs) {
+                RCLCPP_ERROR(this->get_logger(), "Failed to open file for reading landmarks. Make sure step 1 has been run first.");
+                return 13;
+            }
+            ifs.read(reinterpret_cast<char*>(landmarks.data()), landmarks.size() * sizeof(custom_interfaces_pkg::msg::Landmark));
+            ifs.close();
+            RCLCPP_INFO(this->get_logger(), "Loaded landmarks from %s", landmarks_file.c_str());
+            RCLCPP_INFO(this->get_logger(), "Landmark 1: x = %f, y = %f", landmarks[0].x, landmarks[0].y);
+            RCLCPP_INFO(this->get_logger(), "Landmark 6: x = %f, y = %f", landmarks[5].x, landmarks[5].y);
         }
 
         if (prompt_ != ""){

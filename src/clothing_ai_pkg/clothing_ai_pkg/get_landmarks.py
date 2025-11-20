@@ -98,8 +98,8 @@ class GetLandmarksNode(Node):
                 cv_image = self.bridge.imgmsg_to_cv2(self.image, desired_encoding='bgr8')
                 # Crop
                 cv_crop = cv_image[:, left_crop:1280-right_crop]
-                # Rotate image 90 degrees counter clockwise
-                cv_crop = cv2.rotate(cv_crop, cv2.ROTATE_90_CLOCKWISE)
+                # Rotate image 180 degrees
+                cv_crop = cv2.rotate(cv_crop, cv2.ROTATE_180)
             else:
                 self.get_logger().warning("No image available yet for landmark detection")
                 return response  # return empty response gracefully
@@ -119,11 +119,13 @@ class GetLandmarksNode(Node):
         ]
 
         # Transform landmarks back to original image coordinates
+        crop_width = 720
         crop_height = 720
         landmarks_list_corrected = []
         for lm in landmarks_list:
-            x_cropped = lm.y
-            y_cropped = crop_height - lm.x
+            # Reverse 180 degree rotation
+            x_cropped = crop_width - lm.x
+            y_cropped = crop_height - lm.y
             
             # Add the left crop offset to get back to original image coordinates
             x_original = x_cropped + left_crop
@@ -172,7 +174,7 @@ class GetLandmarksNode(Node):
 
     def annotate_image(self, image, landmarks, image_name):
         # Save to outermost directory (workspace root)
-        workspace_root = '/home/'
+        workspace_root = '/home/anders/workspace/project_in_robotics_clothing_manipulation/'
         
         for lm in landmarks:  # lm is a Landmark object
             x = lm.x
