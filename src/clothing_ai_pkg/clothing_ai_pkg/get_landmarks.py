@@ -172,7 +172,7 @@ class GetLandmarksNode(Node):
 
     def annotate_image(self, image, landmarks, image_name):
         # Save to outermost directory (workspace root)
-        workspace_root = '/home/anders/workspace/project_in_robotics_clothing_manipulation'
+        workspace_root = '/home/'
         
         for lm in landmarks:  # lm is a Landmark object
             x = lm.x
