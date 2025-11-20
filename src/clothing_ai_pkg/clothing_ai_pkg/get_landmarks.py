@@ -126,10 +126,16 @@ class GetLandmarksNode(Node):
             # Reverse 180 degree rotation
             x_cropped = crop_width - lm.x
             y_cropped = crop_height - lm.y
+
+            # Move points slightly towards center to avoid edge issues
+            point = np.array([x_cropped, y_cropped])
+            image_center = np.array([crop_width/2, crop_height/2])
+            vec = (image_center - point)
+            new_point = point + vec/np.linalg.norm(vec) * 60  # Slightly move points towards center
             
             # Add the left crop offset to get back to original image coordinates
-            x_original = x_cropped + left_crop
-            y_original = y_cropped
+            x_original = new_point[0] + left_crop 
+            y_original = new_point[1]
             
             landmarks_list_corrected.append(Landmark(x=float(x_original), y=float(y_original)))
         

@@ -391,7 +391,7 @@ private:
     const int Read_PORT = 50000;
     const std::string Read_IP = "192.168.1.104";
 
-    const double midpoint_extra_height = 0.3;
+    const double midpoint_extra_height = 0.15;
     
     // std::vector<double> picture_position = {-0.473, -0.230, 0.930};
     // std::vector<double> picture_orientation = {0.973, -1.514, -1.506};

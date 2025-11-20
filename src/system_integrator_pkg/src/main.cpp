@@ -195,7 +195,7 @@ public:
 
             auto image_to_base_result_pick = image_to_base_future_pick.get();
             std::array<double, 3>  pick_point_baseframe = image_to_base_result_pick->baseframe_coordinates;
-            pick_point_baseframe[2] = -0.0125;
+            pick_point_baseframe[2] = -0.0128;
 
             RCLCPP_INFO(this->get_logger(), "Got response from /image_to_base service: pick_baseframe = {%f, %f, %f}", pick_point_baseframe[0], pick_point_baseframe[1], pick_point_baseframe[2]);
 
