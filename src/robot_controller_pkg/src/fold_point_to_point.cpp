@@ -290,14 +290,16 @@ private:
 
         std::stringstream command;
         command << ""
-                << moveL(picture_position, picture_orientation, 0.25, 1.2, 0) 
+                << moveJ(picture_joint_positions, 0.25, 1.2, 0)
+                // << moveL(picture_position, picture_orientation, 0.25, 1.2, 0) 
                 << openGripper()
                 << moveL(from_point, grip_orientation, 0.25, 1.2, 0)
                 << closeGripper()
                 << moveL(midpoint, grip_orientation, 0.25, 1.2, 0.10)
                 << moveL(to_point, grip_orientation, 0.25, 1.2, 0)
                 << openGripper()
-                << moveL(picture_position, picture_orientation, 0.25, 1.2, 0)
+                << moveJ(picture_joint_positions, 0.25, 1.2, 0)
+                // << moveL(picture_position, picture_orientation, 0.25, 1.2, 0)
 
                 // Listening socket on robot
                 << "socket_open(\"" << Read_IP << "\", "<< Read_PORT << ", socket_name=\"socket_10\")\n"
@@ -391,11 +393,12 @@ private:
 
     const double midpoint_extra_height = 0.3;
     
-    std::vector<double> picture_position = {-0.473, -0.230, 0.930};
-    std::vector<double> picture_orientation = {0.973, -1.514, -1.506};
+    // std::vector<double> picture_position = {-0.473, -0.230, 0.930};
+    // std::vector<double> picture_orientation = {0.973, -1.514, -1.506};
     std::vector<double> grip_orientation = {3.1415, 0, 0};
-    std::vector<double> picture_joint_positions_deg = {33.35, -77.25, 37.02, 220.05, -147.18, -180.25};
-    std::vector<double> picture_joint_positions = DegreesToRadians(picture_joint_positions_deg);
+    std::vector<double> picture_joint_positions_deg_old = {33.35, -77.25, 37.02, 220.05, -147.18, -180.25};
+    std::vector<double> picture_joint_positions_deg_new = {5.31, -90.63, 26.92, 243.72, -87.92, -180.24};
+    std::vector<double> picture_joint_positions = DegreesToRadians(picture_joint_positions_deg_new);
 };
 
 
