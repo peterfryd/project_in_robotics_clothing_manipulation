@@ -110,11 +110,11 @@ def segment_foreground(image, background, visualize=False):
         cv2.imshow("Clothing Contour Overlaid", image_copy)
         cv2.waitKey(0)
 
-    return forergound_mask
+    return forergound_mask, central_contour
 
 # --- Load images ---z
 #image_names = ["1_Color", "2_Color", "3_Color", "4_Color", "5_Color", "6_Color"]
-image_names = ["1", "2", "3", "4", "5", "6"]
+image_names = ["1"]
 background = cv2.imread('images/background.png')
 images = []
 steps = []
@@ -128,7 +128,7 @@ for i in range(len(image_names)):
 
 # Convert to grayscale
 for image in images:
-    forergound_mask = segment_foreground(image, background, visualize=True)
+    steps.append(segment_foreground(image, background, visualize=False))
 
 # STEP 1
 
@@ -153,7 +153,7 @@ if len(approx) < 4:
 hexagon = approx.reshape(-1, 2)
 
 # Draw hexagon on image
-image_with_hull = fg1.copy()
+image_with_hull = images[0].copy()
 distances = []
 for i in range(4):
     pt1 = tuple(hexagon[i])
@@ -202,42 +202,41 @@ for i in range(len(shirt_corners)):
     cv2.circle(image_with_hull, place_point, 5, (0, 0, 255), -1)
     instructions.append((tuple(pick_point), tuple(place_point)))
 
-cv2.imshow('Foreground with Hexagon Hull', image_with_hull)
-cv2.waitKey(0)
+cv2.imwrite("geometric_shape_analysis_step1.png", image_with_hull)
 
 # STEP 2
 
-fg2, cc2 = steps[1]
+# fg2, cc2 = steps[1]
 
-# Load images as grayscale
-img0 = cv2.cvtColor(images[0], cv2.COLOR_BGR2GRAY) 
-img1 = cv2.cvtColor(images[1], cv2.COLOR_BGR2GRAY) 
+# # Load images as grayscale
+# img0 = cv2.cvtColor(images[0], cv2.COLOR_BGR2GRAY) 
+# img1 = cv2.cvtColor(images[1], cv2.COLOR_BGR2GRAY) 
 
-cv2.imshow('Step 1', img0)
-cv2.imshow('Step 2', img1)
-cv2.waitKey(0)
-# Points you want to track from img1
-points_step1 = [instructions[1][0]]  # pick and place points from step 1
+# cv2.imshow('Step 1', img0)
+# cv2.imshow('Step 2', img1)
+# cv2.waitKey(0)
+# # Points you want to track from img1
+# points_step1 = [instructions[1][0]]  # pick and place points from step 1
 
-# Track points to img2
-points_step2 = sift_track_points(img0, img1, points_step1)
+# # Track points to img2
+# points_step2 = sift_track_points(img0, img1, points_step1)
 
-print("Mapped points in step2:", points_step2)
+# print("Mapped points in step2:", points_step2)
 
-# Correct way to draw a circle
-if points_step2[0] is not None:
-    pt_int = (int(points_step2[0][0]), int(points_step2[0][1]))
-    cv2.circle(fg2, pt_int, 5, (255, 0, 0), -1)  # pick point
-    cv2.circle(fg2, instructions[1][1], 5, (0, 0, 255), -1)  # place point
+# # Correct way to draw a circle
+# if points_step2[0] is not None:
+#     pt_int = (int(points_step2[0][0]), int(points_step2[0][1]))
+#     cv2.circle(fg2, pt_int, 5, (255, 0, 0), -1)  # pick point
+#     cv2.circle(fg2, instructions[1][1], 5, (0, 0, 255), -1)  # place point
     
-instructions[1] = (pt_int, instructions[1][1])
-cv2.imshow('Step 2 with Mapped Points', fg2)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+# instructions[1] = (pt_int, instructions[1][1])
+# cv2.imshow('Step 2 with Mapped Points', fg2)
+# cv2.waitKey(0)
+# cv2.destroyAllWindows()
 
 
-# STEP 3
+# # STEP 3
 
-image_3 = cv2.imread('images/steps/step3_masked.jpeg')
-image_3 = cv2.resize(image, (0,0), fx=0.5, fy=0.5)
-images.append(image)
+# image_3 = cv2.imread('images/steps/step3_masked.jpeg')
+# image_3 = cv2.resize(image, (0,0), fx=0.5, fy=0.5)
+# images.append(image)

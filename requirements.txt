@@ -1,3 +1,0 @@
-pip install -U empy lark-parser setuptools
-torch
-torchvision
