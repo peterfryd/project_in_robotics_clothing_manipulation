@@ -3,7 +3,6 @@ from cmath import rect
 from math import inf
 import os
 import cv2
-from ament_index_python.packages import get_package_share_directory
 import numpy as np
 
 def segment_foreground(image, background):
@@ -52,21 +51,6 @@ def segment_foreground(image, background):
     cv2.drawContours(foregroundd_mask, [central_contour], -1, 255, -1)
     
     return foregroundd_mask, central_contour
-
-
-def load_background_image(image_name='background.png'):
-    """
-    Load the background image
-    """
-    
-    pkg_path = get_package_share_directory('image_processing_pkg')
-    image_path = os.path.join(pkg_path, 'data', image_name)
-    
-    img = cv2.imread(image_path, cv2.IMREAD_COLOR)
-    if img is None:
-        raise FileNotFoundError(f"Could not load image at {image_path}")
-    return img
-
 
 def step_1_instructions(landmarks:np.ndarray,  fold_type:str='square') -> tuple[list, list]:
     if fold_type == 'star':
