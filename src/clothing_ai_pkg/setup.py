@@ -27,6 +27,7 @@ setup(
     entry_points={
         'console_scripts': [
             'get_landmarks = clothing_ai_pkg.get_landmarks:main',
+            'get_landmarks_sift_cor = clothing_ai_pkg.get_landmarks_sift_cor:main',
         ],
     },
 )

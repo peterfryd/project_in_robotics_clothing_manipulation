@@ -15,6 +15,7 @@ find_package(sensor_msgs REQUIRED)
 
 # Generate messages
 rosidl_generate_interfaces(${PROJECT_NAME}
+  "srv/GetLandmarksSiftCor.srv"
   "srv/RobotCmd.srv"
   "srv/Inference.srv"
   "srv/FoldPointToPoint.srv"

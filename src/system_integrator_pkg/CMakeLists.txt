@@ -15,6 +15,7 @@ find_package(OpenCV REQUIRED)
 
 # Executable
 add_executable(main src/main.cpp)
+add_executable(main2 src/main2.cpp)
 
 ament_target_dependencies(main
   rclcpp
@@ -24,7 +25,19 @@ ament_target_dependencies(main
   OpenCV
 )
 
+ament_target_dependencies(main2
+  rclcpp
+  sensor_msgs
+  std_srvs
+  custom_interfaces_pkg
+  OpenCV
+)
+
 install(TARGETS main
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(TARGETS main2
   DESTINATION lib/${PROJECT_NAME}
 )
 
