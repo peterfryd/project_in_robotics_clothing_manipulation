@@ -275,6 +275,10 @@ private:
         const std::shared_ptr<custom_interfaces_pkg::srv::FoldPointToPoint::Request> request,
         std::shared_ptr<custom_interfaces_pkg::srv::FoldPointToPoint::Response> response)
     {
+
+        midpoint_extra_height = request->mid_point_height;
+
+        
         std::vector<double> from_point = {request->from_point[0],request->from_point[1], request->from_point[2]};
         std::vector<double> to_point = {request->to_point[0],request->to_point[1], request->to_point[2]};
         std::vector<double> midpoint = {(from_point[0] + to_point[0])/2, (from_point[1] + to_point[1])/2, std::max(from_point[2], to_point[2]) + midpoint_extra_height};
@@ -290,7 +294,7 @@ private:
 
         std::stringstream command;
         command << ""
-                << moveJ(picture_joint_positions, 0.25, 1.2, 0)
+                << moveJ(picture_joint_positions, 1.0, 1.2, 0)
                 // << moveL(picture_position, picture_orientation, 0.25, 1.2, 0) 
                 << openGripper()
                 << moveL(from_point, grip_orientation, 0.25, 1.2, 0)
@@ -298,7 +302,7 @@ private:
                 << moveL(midpoint, grip_orientation, 0.25, 1.2, 0.10)
                 << moveL(to_point, grip_orientation, 0.25, 1.2, 0)
                 << openGripper()
-                << moveJ(picture_joint_positions, 0.25, 1.2, 0)
+                << moveJ(picture_joint_positions, 1.0, 1.2, 0)
                 // << moveL(picture_position, picture_orientation, 0.25, 1.2, 0)
 
                 // Listening socket on robot
@@ -391,7 +395,7 @@ private:
     const int Read_PORT = 50000;
     const std::string Read_IP = "192.168.1.104";
 
-    const double midpoint_extra_height = 0.15;
+    double midpoint_extra_height = 0.15;
     
     // std::vector<double> picture_position = {-0.473, -0.230, 0.930};
     // std::vector<double> picture_orientation = {0.973, -1.514, -1.506};

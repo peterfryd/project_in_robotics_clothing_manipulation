@@ -1,4 +1,5 @@
 float64[3] from_point
 float64[3] to_point
+float64 mid_point_height
 ---
 bool succes

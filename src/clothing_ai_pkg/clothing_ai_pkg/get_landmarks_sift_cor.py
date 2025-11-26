@@ -188,8 +188,11 @@ class GetLandmarksNode(Node):
         # ============================================================
         # STEP N > 1  →  TRACK LANDMARKS WITH LOCAL HOMOGRAPHIES
         # ============================================================
-        elif self.last_step != 0:
-
+        elif request.step_number == 5 and self.last_step > 0:
+            response.landmarks = self.landmarks[1]
+            return response
+        
+        elif self.last_step > 0:
             # Get SIFT in the NEW frame (on rotated crop)
             kp_curr, des_curr = self.sift.detectAndCompute(cv_crop, None)
             self.keypoints[request.step_number] = (kp_curr, des_curr)
@@ -248,25 +251,34 @@ class GetLandmarksNode(Node):
             tracked_crop_rot = []
             for px in selected_px_crop_rot:
                 new_px, ok = self.track_pixel_local_homography(px, pts_prev, pts_curr, tree, k=12)
+                
                 if ok:
-                    tracked_crop_rot.append(new_px)
+                    # Ensure Python floats
+                    new_x = float(new_px[0])
+                    new_y = float(new_px[1])
+                    tracked_crop_rot.append((new_x, new_y))
                 else:
-                    tracked_crop_rot.append((-1, -1))  # failed
+                    tracked_crop_rot.append((-1.0, -1.0))
 
             # -------- Convert back: rotated crop → full frame --------
             tracked_full = []
             for (x_rot, y_rot) in tracked_crop_rot:
+
+                x_rot = float(x_rot)
+                y_rot = float(y_rot)
+
                 if x_rot < 0:
-                    tracked_full.append(Landmark(x=-1, y=-1))
+                    tracked_full.append(Landmark(x=float(-1), y=float(-1)))
                     continue
 
-                x_crop = 720 - x_rot - 1
-                y_crop = 720 - y_rot - 1
+                x_crop = float(720 - x_rot - 1)
+                y_crop = float(720 - y_rot - 1)
 
-                x_full = x_crop + left_crop
-                y_full = y_crop
+                x_full = float(x_crop + left_crop)
+                y_full = float(y_crop)
 
-                tracked_full.append(Landmark(x=float(x_full), y=float(y_full)))
+                tracked_full.append(Landmark(x=x_full, y=y_full))
+
 
             # return
             
@@ -295,8 +307,8 @@ class GetLandmarksNode(Node):
             self.landmarks[request.step_number] = tracked_full
             self.images[request.step_number] = cv_crop
             response.landmarks = tracked_full
-
-            self.annotate_image(cv_image, tracked_full, "landmarks_stepN")
+            name = f"landmarks_step{request.step_number}"
+            self.annotate_image(cv_image, tracked_full,image_name=name)
             return response
 
         else:
@@ -465,7 +477,7 @@ class GetLandmarksNode(Node):
 
         self.get_logger().info(f"Saved visualization → {save_path}")
     
-    def draw_keypoints(image, keypoints, save_name=None):
+    def draw_keypoints(self, image, keypoints, save_name=None):
         """
         Draws a list of OpenCV KeyPoint objects on the image.
 

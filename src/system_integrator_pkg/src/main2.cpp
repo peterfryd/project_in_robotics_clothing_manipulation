@@ -75,15 +75,42 @@ public:
 
     int run()
     {
-        int step = std::stoi(prompt_);
 
-        RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Running!");
+        // Get fold type from prompt
+        std::string fold_type = "";
+        RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), prompt_.c_str());
+        if (prompt_[0] == '*'){
+            fold_type = "*";
+        }else if (prompt_[0] == '#'){
+            fold_type = "#";
+        }
+        else {
+            RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Skill issue?!");
+            return 1;
+        }
+
+        // Run all folds
+        if(prompt_.length() == 1){
+            RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Running all folds!");
+            int steps = 5;
+            if (fold_type == "*"){
+                steps = 4;
+            }
+            for (int i = 1; i <=steps; i++){
+                prompt_ = fold_type + std::to_string(i);
+                run();
+            }
+            return 0;
+        }
+
+
+        int step = std::stoi(prompt_.substr(1));
+
+        RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Running step %i!", step);
 
         // Move to home position
         auto fold_point_to_point_home_req = std::make_shared<std_srvs::srv::Empty::Request>();
-        RCLCPP_ERROR(this->get_logger(), "1");
         auto fold_point_to_point_home_future = fold_point_to_point_home_srv->async_send_request(fold_point_to_point_home_req);
-        RCLCPP_ERROR(this->get_logger(), "2");
 
         if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), fold_point_to_point_home_future)
             != rclcpp::FutureReturnCode::SUCCESS)
@@ -91,8 +118,6 @@ public:
             RCLCPP_ERROR(this->get_logger(), "Failed to call /fold_point_to_point_home_srv");
             return 11;
         }
-
-        RCLCPP_ERROR(this->get_logger(), "3");
 
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Moved to home!");
@@ -122,6 +147,11 @@ public:
         auto get_pick_and_place_req = std::make_shared<custom_interfaces_pkg::srv::GetPickAndPlacePoint::Request>();
         get_pick_and_place_req->step_number = step;
         get_pick_and_place_req->landmarks = landmarks;
+        if (fold_type == "*"){
+            get_pick_and_place_req->fold_type = "star";
+        }else{
+            get_pick_and_place_req->fold_type = "square";
+        }
 
         auto get_pick_and_place_future = get_pick_and_place_srv->async_send_request(get_pick_and_place_req);
 
@@ -149,21 +179,17 @@ public:
         auto image_to_base_req = std::make_shared<custom_interfaces_pkg::srv::ImageToBase::Request>();
         image_to_base_req->imageframe_coordinates = pick_point;
 
-        RCLCPP_INFO(this->get_logger(), "1");
-
         auto image_to_base_future_pick = image_to_base_srv->async_send_request(image_to_base_req);
-        RCLCPP_INFO(this->get_logger(), "2");
         if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), image_to_base_future_pick)
             != rclcpp::FutureReturnCode::SUCCESS)
         {
             RCLCPP_ERROR(this->get_logger(), "Failed to call /get_pick_and_place_point_srv");
             return 2;
         }
-        RCLCPP_INFO(this->get_logger(), "3");
 
         auto image_to_base_result_pick = image_to_base_future_pick.get();
         std::array<double, 3>  pick_point_baseframe = image_to_base_result_pick->baseframe_coordinates;
-        pick_point_baseframe[2] = -0.0125;
+        pick_point_baseframe[2] = -0.0129;
 
         RCLCPP_INFO(this->get_logger(), "Got response from /image_to_base service: pick_baseframe = {%f, %f, %f}", pick_point_baseframe[0], pick_point_baseframe[1], pick_point_baseframe[2]);
 
@@ -183,13 +209,21 @@ public:
 
         auto image_to_base_result_place = image_to_base_future_place.get();
         std::array<double, 3>  place_point_baseframe = image_to_base_result_place->baseframe_coordinates;
-        place_point_baseframe[2] = -0.0;
+        place_point_baseframe[2] = 0.0;
 
         RCLCPP_INFO(this->get_logger(), "Got response from /image_to_base service: place_baseframe = {%f, %f, %f}", place_point_baseframe[0], place_point_baseframe[1], place_point_baseframe[2]);
 
 
         // Fold point to point
         auto fold_point_to_point_req = std::make_shared<custom_interfaces_pkg::srv::FoldPointToPoint::Request>();
+
+        if(step == 5){
+            fold_point_to_point_req->mid_point_height = 0.25;
+            pick_point_baseframe[2] = -0.005;
+        }else{
+            fold_point_to_point_req->mid_point_height = 0.15;
+        }
+
         fold_point_to_point_req->from_point = pick_point_baseframe;
         fold_point_to_point_req->to_point = place_point_baseframe;
 
