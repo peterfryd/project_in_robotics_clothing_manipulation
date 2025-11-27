@@ -119,9 +119,10 @@ public:
             return 11;
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Moved to home!");
-
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
+        // Get landmarks
         auto get_landmarks_req = std::make_shared<custom_interfaces_pkg::srv::GetLandmarksSiftCor::Request>();
         get_landmarks_req->step_number = step;
         
@@ -142,8 +143,8 @@ public:
         RCLCPP_INFO(this->get_logger(), "get_landmarks_result: %s", landmarks_type.c_str());
         RCLCPP_INFO(this->get_logger(), "Landmark 0: x = %f, y = %f", get_landmarks_result->landmarks[0].x, get_landmarks_result->landmarks[0].y);
         
+        // Get pick and place points
         RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Folding step %i", step);
-        
         auto get_pick_and_place_req = std::make_shared<custom_interfaces_pkg::srv::GetPickAndPlacePoint::Request>();
         get_pick_and_place_req->step_number = step;
         get_pick_and_place_req->landmarks = landmarks;
@@ -219,7 +220,8 @@ public:
 
         if(step == 5){
             fold_point_to_point_req->mid_point_height = 0.25;
-            pick_point_baseframe[2] = -0.005;
+            pick_point_baseframe[2] = -0.005;   // Big black t-shirt
+            pick_point_baseframe[2] = -0.010;   // Small Dinasour t-shirt
         }else{
             fold_point_to_point_req->mid_point_height = 0.15;
         }

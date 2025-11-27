@@ -1,0 +1,50 @@
+fold type, shirt type, success, failed steps
+*, small, 1,
+*, small, 0, 3
+
+*, big, 1,
+*, big, 1,
+*, big, 1,
+*, big, 1,
+*, big, 0, 3
+*, big, 1,
+*, big, 1,
+*, big, 1,
+*, big, 0, 1
+*, big, 1,
+*, big, 0, 4
+*, big, 1,
+*, big, 1,
+*, big, 0, 2
+*, big, 1
+*, big, 1
+
+
+
+
+
+
+
+
+
+
+#, big, 1,
+#, big, 0, 45,
+#, big, 1,
+#, big, 1
+#, big, 1
+#, big, 1
+#, big, 1
+#, big, 1
+#, big, 1
+#, big, 1
+#, big, 0, 2,
+#, big, 1, 
+#, big, 1,
+#, big, 1,
+#, big, 1,
+#, big,
+
+
+
+

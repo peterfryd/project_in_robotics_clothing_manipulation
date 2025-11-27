@@ -294,7 +294,7 @@ private:
 
         std::stringstream command;
         command << ""
-                << moveJ(picture_joint_positions, 1.0, 1.2, 0)
+                << moveJ(picture_joint_positions, 2.0, 1.2, 0)
                 // << moveL(picture_position, picture_orientation, 0.25, 1.2, 0) 
                 << openGripper()
                 << moveL(from_point, grip_orientation, 0.25, 1.2, 0)
@@ -302,7 +302,7 @@ private:
                 << moveL(midpoint, grip_orientation, 0.25, 1.2, 0.10)
                 << moveL(to_point, grip_orientation, 0.25, 1.2, 0)
                 << openGripper()
-                << moveJ(picture_joint_positions, 1.0, 1.2, 0)
+                << moveJ(picture_joint_positions, 2.0, 1.2, 0)
                 // << moveL(picture_position, picture_orientation, 0.25, 1.2, 0)
 
                 // Listening socket on robot
