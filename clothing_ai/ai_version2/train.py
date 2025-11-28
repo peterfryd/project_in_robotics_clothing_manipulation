@@ -4,9 +4,9 @@ import torch
 import torchvision
 from torch.utils.data import Dataset, DataLoader
 from torchvision.models.detection import keypointrcnn_resnet50_fpn
-from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
-from torchvision.models.detection.keypoint_rcnn import KeypointRCNNHeads
+from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+
 from torchvision.transforms import functional as F
 from torch.utils.tensorboard import SummaryWriter
 from PIL import Image
@@ -120,10 +120,14 @@ val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, collate_fn=lam
 # MODEL
 # ================================
 model = keypointrcnn_resnet50_fpn(weights=None, num_keypoints=NUM_KEYPOINTS)
-in_features = model.roi_heads.box_predictor.cls_score.in_features
-model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes=2)
-in_features_mask = model.roi_heads.mask_predictor.conv5_mask.in_channels
-model.roi_heads.mask_predictor = MaskRCNNPredictor(in_features_mask, 256, 2)
+
+# Box head (2 classes: background + short sleeve top)
+in_features_box = model.roi_heads.box_predictor.cls_score.in_features
+model.roi_heads.box_predictor = FastRCNNPredictor(in_features_box, num_classes=2)
+
+# Mask head (2 classes)
+in_features_mask = 256  # standard for resnet50 FPN MaskRCNNPredictor
+model.roi_heads.mask_predictor = MaskRCNNPredictor(in_features_mask, 256, num_classes=2)
 
 model.to(DEVICE)
 
