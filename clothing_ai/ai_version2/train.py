@@ -3,7 +3,7 @@ import json
 import torch
 import torchvision
 from torch.utils.data import Dataset, DataLoader
-from torchvision.models.detection import maskrcnn_resnet50_fpn, MaskRCNN
+from torchvision.models.detection import keypointrcnn_resnet50_fpn
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
 from torchvision.models.detection.keypoint_rcnn import KeypointRCNNPredictor
@@ -45,7 +45,6 @@ class DeepFashion2Dataset(Dataset):
         self.ann_dir = ann_dir
         self.transforms = transforms
         self.img_files = sorted([f for f in os.listdir(img_dir) if f.endswith((".jpg", ".png"))])
-
         # filter only short top sleeves
         self.img_files = [
             f for f in self.img_files
@@ -107,7 +106,6 @@ class DeepFashion2Dataset(Dataset):
                     v = 0
                 kps_formatted.append([x,y,v])
             if len(kps_formatted) < NUM_KEYPOINTS:
-                # pad to NUM_KEYPOINTS
                 for _ in range(NUM_KEYPOINTS - len(kps_formatted)):
                     kps_formatted.append([0,0,0])
             keypoints.append(kps_formatted[:NUM_KEYPOINTS])
@@ -118,7 +116,7 @@ class DeepFashion2Dataset(Dataset):
 
         target = {
             "boxes": boxes,
-            "labels": torch.ones((len(boxes),), dtype=torch.int64),  # all class 1
+            "labels": torch.ones((len(boxes),), dtype=torch.int64),
             "masks": masks,
             "keypoints": keypoints
         }
@@ -130,20 +128,14 @@ class DeepFashion2Dataset(Dataset):
         return img, target
 
 # ================================
-# TRANSFORMS
-# ================================
-def get_transform():
-    return None  # no augmentations, only resize in collate
-
-# ================================
 # DATA LOADERS
 # ================================
 def collate_fn(batch):
     imgs, targets = zip(*batch)
     return list(imgs), list(targets)
 
-train_dataset = DeepFashion2Dataset(TRAIN_IMG_DIR, TRAIN_ANN_DIR, transforms=get_transform())
-val_dataset   = DeepFashion2Dataset(VAL_IMG_DIR, VAL_ANN_DIR, transforms=get_transform())
+train_dataset = DeepFashion2Dataset(TRAIN_IMG_DIR, TRAIN_ANN_DIR)
+val_dataset   = DeepFashion2Dataset(VAL_IMG_DIR, VAL_ANN_DIR)
 
 train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True,
                           num_workers=NUM_WORKERS, collate_fn=collate_fn)
@@ -153,19 +145,20 @@ val_loader   = DataLoader(val_dataset, batch_size=1, shuffle=False,
 # ================================
 # MODEL
 # ================================
-# Load pre-trained Mask R-CNN with ResNet101-FPN
-model = torchvision.models.detection.maskrcnn_resnet50_fpn(weights="DEFAULT", box_detections_per_img=100)
-# replace box predictor
+model = keypointrcnn_resnet50_fpn(weights="DEFAULT", box_detections_per_img=100)
+
+# Replace box predictor
 in_features = model.roi_heads.box_predictor.cls_score.in_features
 model.roi_heads.box_predictor = FastRCNNPredictor(in_features, NUM_CLASSES)
-# replace mask predictor
+
+# Replace mask predictor
 in_features_mask = model.roi_heads.mask_predictor.conv5_mask.in_channels
 hidden_layer = 256
 model.roi_heads.mask_predictor = MaskRCNNPredictor(in_features_mask, hidden_layer, NUM_CLASSES)
-# replace keypoint predictor
-if hasattr(model.roi_heads, "keypoint_predictor"):
-    in_features_kp = model.roi_heads.keypoint_predictor.kps_score_lowres.in_channels
-    model.roi_heads.keypoint_predictor = KeypointRCNNPredictor(in_features_kp, hidden_layer, NUM_KEYPOINTS)
+
+# Replace keypoint predictor
+in_features_kp = model.roi_heads.keypoint_predictor.kps_score_lowres.in_channels
+model.roi_heads.keypoint_predictor = KeypointRCNNPredictor(in_features_kp, hidden_layer, NUM_KEYPOINTS)
 
 model.to(DEVICE)
 
