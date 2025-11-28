@@ -16,9 +16,9 @@ import cv2
 # ================================
 # CONFIG
 # ================================
-DATA_ROOT = "/home/ucloud/deepfashion2_original_images"
-OUTPUT_DIR = "./df2_output_torchvision"
-TENSORBOARD_DIR = "./runs/df2_logs_torchvision"
+DATA_ROOT = "/home/ucloud/Downloads/deepfashion2_original_images"
+OUTPUT_DIR = "./df2_output"
+TENSORBOARD_DIR = "./runs/df2_logs"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs(TENSORBOARD_DIR, exist_ok=True)
 
