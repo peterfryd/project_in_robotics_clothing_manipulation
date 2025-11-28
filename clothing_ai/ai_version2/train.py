@@ -3,7 +3,7 @@ import json
 import torch
 import torchvision
 from torch.utils.data import Dataset, DataLoader
-from torchvision.models.detection import keypointrcnn_resnet50_fpn
+from torchvision.models.detection import maskrcnn_resnet50_fpn
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
 from torchvision.models.detection.keypoint_rcnn import KeypointRCNNPredictor
@@ -15,7 +15,7 @@ from torch.utils.tensorboard import SummaryWriter
 # ================================
 # CONFIG
 # ================================
-DATA_ROOT = "/home/ucloud/Downloads/deepfashion2_original_images"
+DATA_ROOT = "/home/ucloud/deepfashion2_original_images"
 OUTPUT_DIR = "./df2_output"
 TENSORBOARD_DIR = "./runs/df2_logs"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -45,7 +45,7 @@ class DeepFashion2Dataset(Dataset):
         self.ann_dir = ann_dir
         self.transforms = transforms
         self.img_files = sorted([f for f in os.listdir(img_dir) if f.endswith((".jpg", ".png"))])
-        # filter only short top sleeves
+        # filter only short sleeve tops
         self.img_files = [
             f for f in self.img_files
             if self._has_short_top(os.path.join(ann_dir, f.rsplit(".",1)[0]+".json"))
@@ -98,7 +98,6 @@ class DeepFashion2Dataset(Dataset):
                 masks.append(np.zeros((img.shape[0], img.shape[1]), dtype=np.uint8))
             # keypoints
             kps = item.get("landmarks", [])
-            # format keypoints: (x, y, visibility)
             kps_formatted = []
             for i in range(0, len(kps), 3):
                 x, y, v = kps[i:i+3]
@@ -145,7 +144,7 @@ val_loader   = DataLoader(val_dataset, batch_size=1, shuffle=False,
 # ================================
 # MODEL
 # ================================
-model = keypointrcnn_resnet50_fpn(weights="DEFAULT", box_detections_per_img=100)
+model = maskrcnn_resnet50_fpn(weights="DEFAULT", box_detections_per_img=100, mask_on=True)
 
 # Replace box predictor
 in_features = model.roi_heads.box_predictor.cls_score.in_features
@@ -156,8 +155,12 @@ in_features_mask = model.roi_heads.mask_predictor.conv5_mask.in_channels
 hidden_layer = 256
 model.roi_heads.mask_predictor = MaskRCNNPredictor(in_features_mask, hidden_layer, NUM_CLASSES)
 
-# Replace keypoint predictor
-in_features_kp = model.roi_heads.keypoint_predictor.kps_score_lowres.in_channels
+# Add keypoint head manually
+from torchvision.models.detection.roi_heads import fastrcnn_loss, maskrcnn_loss
+from torchvision.models.detection.keypoint_rcnn import KeypointRCNNHead
+
+# Create keypoint head
+in_features_kp = 256  # default FPN output channels
 model.roi_heads.keypoint_predictor = KeypointRCNNPredictor(in_features_kp, hidden_layer, NUM_KEYPOINTS)
 
 model.to(DEVICE)
