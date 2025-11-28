@@ -18,10 +18,8 @@ class GetPickAndPlacePointNode(Node):
     def __init__(self):
         super().__init__('get_pick_and_place_point_node')
         
-        self.place_point1 = None
-        self.place_point3 = None
-        self.pick_point3 = None
         self.place_point4 = None
+        self.pick_point4 = None
         
         self.pkg_path = get_package_share_directory('image_processing_pkg')
         
@@ -45,47 +43,18 @@ class GetPickAndPlacePointNode(Node):
             self.get_pick_and_place_point_handler
         )
 
-        # self.back_ground_srv = self.create_service(
-        #     Empty,
-        #     '/update_background_image_srv',
-        #     self.update_back_ground_image
-        # )
-
-        self.get_logger().info("get_pick_and_place_point node ready and providing /get_pick_and_place_point_srv  and /update_background_image service.")
+        self.step1_landmarks = None
+        self.get_logger().info("get_pick_and_place_point node ready and providing /get_pick_and_place_point_srv service.")
 
     
     def image_callback(self, msg):
         with self.lock:
             self.image_newest = msg
     
-    def update_back_ground_image(self, request, response):
-        # cv_image = None
-        # with self.lock:
-        #     if self.image is not None:
-        #         cv_image = self.bridge.imgmsg_to_cv2(self.image, desired_encoding='bgr8')
-        #     else:
-        #         self.get_logger().error("No Image available to update the background image")
-        #         return response
-            
-        # mask_path = os.path.join(self.pkg_path, 'data', "mask.png")
-        
-        # mask_image = cv2.imread(mask_path, cv2.IMREAD_COLOR)
-        
-        # mask = cv2.bitwise_not(cv2.inRange(mask_image, np.array([255, 255, 255]), np.array([255, 255, 255])))
-        
-        # background = cv2.bitwise_and(cv_image, cv_image, mask=mask)
-        
-        # with self.lock:
-        #     self.background = background
-        
-        # self.get_logger().info("Background image updated.")
-        return response
-            
-    
     def get_pick_and_place_point_handler(self, request, response):
         step_number = request.step_number
         landmarks = request.landmarks
-        cv_image = None
+        fold_type = request.fold_type
         
         # Check if image is ready
         with self.lock:
@@ -103,28 +72,38 @@ class GetPickAndPlacePointNode(Node):
                 response.image_place_point = [0, 0]
                 return response
             
-            cv_image = self.bridge.imgmsg_to_cv2(self.image_to_use, desired_encoding='bgr8')
-        
         pick_point = [0, 0]
         place_point = [0, 0]
-        
+
         if step_number == 1:
+            self.step1_landmarks = landmarks
             self.get_logger().info("Running Step 1")
-            pick_point, place_point = step_1_instructions(landmarks=landmarks)
+            pick_point, place_point = step_1_instructions(landmarks=landmarks, fold_type=fold_type)
         elif step_number == 2:
-            self.get_logger().info("Running Step 2")
-            pick_point, place_point = step_2_instructions(landmarks=landmarks)
+            pick_point, place_point = step_2_instructions(
+                landmarks=landmarks,
+                original_landmarks=self.step1_landmarks, fold_type=fold_type
+            )
         elif step_number == 3:
-            self.get_logger().info("Running Step 3")
-            pick_point, place_point = step_3_instructions(landmarks=landmarks)
+            pick_point, place_point = step_3_instructions(
+                landmarks=landmarks,
+                original_landmarks=self.step1_landmarks, fold_type=fold_type
+            )
         elif step_number == 4:
-            self.get_logger().info("Running Step 4")
-            pick_point, place_point = step_4_instructions(landmarks=landmarks)
+            pick_point, place_point = step_4_instructions(
+                landmarks=landmarks,
+                original_landmarks=self.step1_landmarks, fold_type=fold_type
+            )
+            self.pick_point4 = pick_point
+            self.place_point4 = place_point
+
         elif step_number == 5:
-            self.get_logger().info("Running Step 5")
-            ret = step_5_instructions(landmarks=landmarks)
-            if ret is not None:
-                pick_point, place_point = ret
+            pick_point, place_point = step_5_instructions(
+                last_pick_point = self.pick_point4,
+                last_place_point= self.place_point4,
+                original_landmarks=self.step1_landmarks, fold_type=fold_type
+            )
+
         else:
             self.get_logger().warn(f"Unknown step number {step_number}, returning [0, 0].")
             
