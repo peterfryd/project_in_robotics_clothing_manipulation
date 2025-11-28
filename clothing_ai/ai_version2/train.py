@@ -1,22 +1,24 @@
 import os
 import json
 import torch
-from detectron2.engine import DefaultTrainer
-from detectron2.config import get_cfg
-from detectron2.data import DatasetCatalog, MetadataCatalog, detection_utils as utils
-from detectron2.data import transforms as T
-from detectron2.engine.hooks import HookBase
-from detectron2.data import build_detection_train_loader, build_detection_test_loader
-from detectron2.evaluation import COCOEvaluator, inference_on_dataset
-from detectron2 import model_zoo
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import Dataset, DataLoader
+from torchvision import transforms
+from torchvision.models.detection import maskrcnn_resnet50_fpn
+from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
 from torch.utils.tensorboard import SummaryWriter
+import numpy as np
+from PIL import Image
+import cv2
 
 # ================================
 # CONFIG
 # ================================
 DATA_ROOT = "/home/ucloud/deepfashion2_original_images"
-OUTPUT_DIR = "./df2_output"
-TENSORBOARD_DIR = "./runs/df2_logs"
+OUTPUT_DIR = "./df2_output_torchvision"
+TENSORBOARD_DIR = "./runs/df2_logs_torchvision"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs(TENSORBOARD_DIR, exist_ok=True)
 
@@ -25,8 +27,14 @@ TRAIN_ANN_DIR = os.path.join(DATA_ROOT, "train", "annos")
 VAL_IMG_DIR   = os.path.join(DATA_ROOT, "validation", "image")
 VAL_ANN_DIR   = os.path.join(DATA_ROOT, "validation", "annos")
 
+BATCH_SIZE = 4
+NUM_WORKERS = 4
+LR = 1e-4
+EPOCHS = 20
+CHECKPOINT_EVERY = 1000
+
 # ================================
-# UTILITY: Map category_id to consecutive integers
+# UTILITY: Category mapping
 # ================================
 def build_category_mapping(ann_dir):
     cat_ids = set()
@@ -44,28 +52,32 @@ def build_category_mapping(ann_dir):
 CATEGORY_MAP, NUM_CLASSES = build_category_mapping(TRAIN_ANN_DIR)
 
 # ================================
-# LOAD DATASET
+# DATASET
 # ================================
-def parse_deepfashion2(img_dir, ann_dir):
-    dataset_dicts = []
-    img_files = sorted([f for f in os.listdir(img_dir) if f.endswith((".jpg",".png"))])
-    for idx, img_file in enumerate(img_files):
-        img_path = os.path.join(img_dir, img_file)
-        ann_path = os.path.join(ann_dir, img_file.rsplit(".",1)[0] + ".json")
-        if not os.path.exists(ann_path):
-            continue
+class DeepFashion2Dataset(Dataset):
+    def __init__(self, img_dir, ann_dir, transforms=None):
+        self.img_dir = img_dir
+        self.ann_dir = ann_dir
+        self.transforms = transforms
+        self.img_files = sorted([f for f in os.listdir(img_dir) if f.endswith((".jpg",".png"))])
+
+    def __len__(self):
+        return len(self.img_files)
+
+    def __getitem__(self, idx):
+        img_name = self.img_files[idx]
+        img_path = os.path.join(self.img_dir, img_name)
+        ann_path = os.path.join(self.ann_dir, img_name.rsplit(".",1)[0]+".json")
+        img = Image.open(img_path).convert("RGB")
+        width, height = img.size
+
         with open(ann_path, "r") as f:
             ann = json.load(f)
 
-        height, width = utils.read_image(img_path).shape[:2]
-
-        record = {
-            "file_name": img_path,
-            "image_id": idx,
-            "height": height,
-            "width": width,
-            "annotations": []
-        }
+        boxes = []
+        labels = []
+        masks = []
+        keypoints = []
 
         for key in ["item1","item2"]:
             if key not in ann:
@@ -73,119 +85,136 @@ def parse_deepfashion2(img_dir, ann_dir):
             item = ann[key]
             if "bounding_box" not in item or "category_id" not in item:
                 continue
+            x0,y0,x1,y1 = item["bounding_box"]
+            boxes.append([x0, y0, x1, y1])
+            labels.append(CATEGORY_MAP[item["category_id"]]+1)  # +1 because background=0
+            # Segmentation masks
+            mask = np.zeros((height, width), dtype=np.uint8)
+            for poly in item.get("segmentation", []):
+                pts = np.array(poly, dtype=np.int32).reshape(-1,2)
+                cv2.fillPoly(mask, [pts], 1)
+            masks.append(mask)
+            # Keypoints
+            lm = item.get("landmarks", [])
+            if len(lm) % 3 != 0:
+                lm = lm + [0]*(3 - len(lm)%3)
+            kp = []
+            for i in range(0,len(lm),3):
+                x, y, v = lm[i:i+3]
+                kp.append([x, y, v])
+            keypoints.append(kp)
 
-            # convert category to 0..N-1
-            cat_id = CATEGORY_MAP[item["category_id"]]
+        boxes = torch.as_tensor(boxes, dtype=torch.float32)
+        labels = torch.as_tensor(labels, dtype=torch.int64)
+        masks = torch.as_tensor(masks, dtype=torch.uint8)
+        keypoints = torch.as_tensor(keypoints, dtype=torch.float32)
 
-            obj = {
-                "bbox": item["bounding_box"],
-                "bbox_mode": utils.BoxMode.XYXY_ABS,
-                "category_id": cat_id,
-                "segmentation": item.get("segmentation", []),
-                "keypoints": item.get("landmarks", [])
-            }
-            record["annotations"].append(obj)
-        dataset_dicts.append(record)
-    return dataset_dicts
+        target = {}
+        target["boxes"] = boxes
+        target["labels"] = labels
+        target["masks"] = masks
+        target["keypoints"] = keypoints
+        target["image_id"] = torch.tensor([idx])
 
-# REGISTER DATASETS
-DatasetCatalog.register("df2_train", lambda: parse_deepfashion2(TRAIN_IMG_DIR, TRAIN_ANN_DIR))
-DatasetCatalog.register("df2_val", lambda: parse_deepfashion2(VAL_IMG_DIR, VAL_ANN_DIR))
-MetadataCatalog.get("df2_train").set(thing_classes=[f"class_{i}" for i in range(NUM_CLASSES)])
+        if self.transforms:
+            img = self.transforms(img)
 
-# ================================
-# CUSTOM MAPPER (RESIZE ONLY)
-# ================================
-def custom_mapper(dataset_dict):
-    dataset_dict = dataset_dict.copy()
-    image = utils.read_image(dataset_dict["file_name"], format="BGR")
-    aug = T.ResizeShortestEdge(short_edge_length=800, max_size=1333)
-    aug_input = T.AugInput(image)
-    transforms = aug(aug_input)
-    image = aug_input.image
-    dataset_dict["image"] = torch.as_tensor(image.transpose(2,0,1).copy())
-    annos = [utils.transform_instance_annotations(obj, transforms, image.shape[:2])
-              for obj in dataset_dict.pop("annotations")]
-    dataset_dict["instances"] = utils.annotations_to_instances(annos, image.shape[:2])
-    return dataset_dict
-
-# ================================
-# HOOKS
-# ================================
-class TensorboardHook(HookBase):
-    def __init__(self, writer):
-        self.writer = writer
-    def after_step(self):
-        if self.trainer.iter % 20 == 0:
-            for k, v in self.trainer.storage.latest().items():
-                self.writer.add_scalar(k, v, self.trainer.iter)
-
-class ValidationHook(HookBase):
-    def __init__(self, cfg, writer, val_period=5000):
-        self.cfg = cfg.clone()
-        self.writer = writer
-        self.val_period = val_period
-    def after_step(self):
-        if self.trainer.iter % self.val_period == 0 and self.trainer.iter > 0:
-            evaluator = COCOEvaluator("df2_val", self.cfg, False, output_dir=OUTPUT_DIR)
-            val_loader = build_detection_test_loader(self.cfg, "df2_val")
-            metrics = inference_on_dataset(self.trainer.model, val_loader, evaluator)
-            if "bbox" in metrics:
-                self.writer.add_scalar("val/mAP_bbox", metrics["bbox"]["AP"], self.trainer.iter)
-            if "segm" in metrics:
-                self.writer.add_scalar("val/mAP_mask", metrics["segm"]["AP"], self.trainer.iter)
-            if "keypoints" in metrics:
-                self.writer.add_scalar("val/mAP_keypoints", metrics["keypoints"]["AP"], self.trainer.iter)
-            print(f"\n📝 Validation metrics at iter {self.trainer.iter}: {metrics}\n")
-
-class IterativeCheckpointHook(HookBase):
-    def __init__(self, save_dir, save_every=2000):
-        self.save_dir = save_dir
-        self.save_every = save_every
-    def after_step(self):
-        if self.trainer.iter % self.save_every == 0 and self.trainer.iter > 0:
-            path = os.path.join(self.save_dir, f"model_iter_{self.trainer.iter}.pth")
-            self.trainer.checkpointer.save(path)
-            print(f"\n💾 Saved checkpoint: {path}\n")
+        return img, target
 
 # ================================
-# TRAINER
+# TRANSFORMS
 # ================================
-class DF2Trainer(DefaultTrainer):
-    @classmethod
-    def build_train_loader(cls, cfg):
-        return build_detection_train_loader(cfg, mapper=custom_mapper)
+train_tfms = transforms.Compose([
+    transforms.ToTensor(),
+])
 
-# ================================
-# CONFIGURATION
-# ================================
-cfg = get_cfg()
-cfg.merge_from_file(model_zoo.get_config_file("COCO-InstanceSegmentation/mask_rcnn_R_101_FPN_3x.yaml"))
-
-cfg.DATASETS.TRAIN = ("df2_train",)
-cfg.DATASETS.TEST  = ("df2_val",)
-cfg.DATALOADER.NUM_WORKERS = 4
-cfg.SOLVER.IMS_PER_BATCH = 4
-cfg.SOLVER.BASE_LR = 1e-4
-cfg.SOLVER.MAX_ITER = 300000
-cfg.SOLVER.STEPS = []  # no LR decay
-cfg.SOLVER.CHECKPOINT_PERIOD = 50000
-
-cfg.MODEL.ROI_HEADS.NUM_CLASSES = NUM_CLASSES
-cfg.MODEL.KEYPOINT_ON = True  # landmarks
-
-cfg.OUTPUT_DIR = OUTPUT_DIR
+val_tfms = transforms.Compose([
+    transforms.ToTensor(),
+])
 
 # ================================
-# TRAINING
+# DATALOADERS
+# ================================
+train_dataset = DeepFashion2Dataset(TRAIN_IMG_DIR, TRAIN_ANN_DIR, transforms=train_tfms)
+val_dataset   = DeepFashion2Dataset(VAL_IMG_DIR, VAL_ANN_DIR, transforms=val_tfms)
+
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS, collate_fn=lambda x: tuple(zip(*x)))
+val_loader   = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS, collate_fn=lambda x: tuple(zip(*x)))
+
+# ================================
+# MODEL
+# ================================
+def get_model(num_classes):
+    model = maskrcnn_resnet50_fpn(pretrained=True)
+    # Replace box predictor
+    in_features = model.roi_heads.box_predictor.cls_score.in_features
+    model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes+1)
+    # Replace mask predictor
+    in_features_mask = model.roi_heads.mask_predictor.conv5_mask.in_channels
+    hidden_layer = 256
+    model.roi_heads.mask_predictor = MaskRCNNPredictor(in_features_mask, hidden_layer, num_classes+1)
+    return model
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = get_model(NUM_CLASSES).to(device)
+
+# ================================
+# OPTIMIZER
+# ================================
+params = [p for p in model.parameters() if p.requires_grad]
+optimizer = optim.AdamW(params, lr=LR)
+
+# ================================
+# TRAINING LOOP
 # ================================
 writer = SummaryWriter(TENSORBOARD_DIR)
-trainer = DF2Trainer(cfg)
-trainer.register_hooks([TensorboardHook(writer)])
-trainer.register_hooks([ValidationHook(cfg, writer, val_period=5000)])
-trainer.register_hooks([IterativeCheckpointHook(OUTPUT_DIR, save_every=2000)])
+global_step = 0
 
-trainer.resume_or_load(resume=False)
-trainer.train()
+for epoch in range(EPOCHS):
+    model.train()
+    running_loss = 0.0
+    for imgs, targets in train_loader:
+        imgs = list(img.to(device) for img in imgs)
+        targets = [{k: v.to(device) for k,v in t.items()} for t in targets]
+
+        loss_dict = model(imgs, targets)
+        losses = sum(loss for loss in loss_dict.values())
+
+        optimizer.zero_grad()
+        losses.backward()
+        optimizer.step()
+
+        running_loss += losses.item()
+        writer.add_scalar("train/loss", losses.item(), global_step)
+        global_step += 1
+
+        if global_step % CHECKPOINT_EVERY == 0:
+            ckpt_path = os.path.join(OUTPUT_DIR, f"model_step_{global_step}.pth")
+            torch.save(model.state_dict(), ckpt_path)
+            print(f"💾 Saved checkpoint: {ckpt_path}")
+
+    print(f"Epoch {epoch+1} | Avg Loss: {running_loss/len(train_loader):.4f}")
+
+    # ================================
+    # VALIDATION LOOP (every epoch)
+    # ================================
+    model.eval()
+    val_loss = 0.0
+    with torch.no_grad():
+        for imgs, targets in val_loader:
+            imgs = list(img.to(device) for img in imgs)
+            targets = [{k: v.to(device) for k,v in t.items()} for t in targets]
+            loss_dict = model(imgs, targets)
+            losses = sum(loss for loss in loss_dict.values())
+            val_loss += losses.item()
+    avg_val_loss = val_loss / len(val_loader)
+    writer.add_scalar("val/loss", avg_val_loss, epoch)
+    print(f"Epoch {epoch+1} | Validation Loss: {avg_val_loss:.4f}")
+
+# ================================
+# FINAL SAVE
+# ================================
+final_path = os.path.join(OUTPUT_DIR, "model_final.pth")
+torch.save(model.state_dict(), final_path)
 writer.close()
-print("🎉 Training complete!")
+print(f"🎉 Training complete! Model saved at {final_path}")
