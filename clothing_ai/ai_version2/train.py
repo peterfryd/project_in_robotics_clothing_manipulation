@@ -4,16 +4,20 @@ import torch
 import torchvision
 from torch.utils.data import Dataset, DataLoader
 from torchvision.models.detection import keypointrcnn_resnet50_fpn
-import numpy as np
-from PIL import Image
+from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
+from torchvision.models.detection.keypoint_rcnn import KeypointRCNNHeads
+from torchvision.transforms import functional as F
 from torch.utils.tensorboard import SummaryWriter
+from PIL import Image
+import numpy as np
 
-# =============================
+# ================================
 # CONFIG
-# =============================
+# ================================
 DATA_ROOT = "/home/ucloud/Downloads/deepfashion2_original_images"
-OUTPUT_DIR = "./df2_output_landmarks"
-TENSORBOARD_DIR = "./runs/df2_landmark_logs"
+OUTPUT_DIR = "./df2_output"
+TENSORBOARD_DIR = "./runs/df2_logs"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs(TENSORBOARD_DIR, exist_ok=True)
 
@@ -22,32 +26,20 @@ TRAIN_ANN_DIR = os.path.join(DATA_ROOT, "train", "annos")
 VAL_IMG_DIR   = os.path.join(DATA_ROOT, "validation", "image")
 VAL_ANN_DIR   = os.path.join(DATA_ROOT, "validation", "annos")
 
-NUM_KEYPOINTS = 25  # landmarks per short sleeve top
+BATCH_SIZE = 4
+NUM_EPOCHS = 20
+NUM_KEYPOINTS = 25
 DEVICE = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-BATCH_SIZE = 2
-NUM_WORKERS = 4
-LR = 1e-4
-NUM_EPOCHS = 50
-CHECKPOINT_EVERY = 2000
 
-# =============================
+# ================================
 # DATASET
-# =============================
-class ShortTopKeypointDataset(Dataset):
-    def __init__(self, img_dir, ann_dir):
+# ================================
+class DeepFashion2TopDataset(Dataset):
+    def __init__(self, img_dir, ann_dir, transform=None):
         self.img_dir = img_dir
         self.ann_dir = ann_dir
-        self.img_files = sorted([f for f in os.listdir(img_dir) if f.endswith((".jpg",".png"))])
-        self.img_files = [f for f in self.img_files if self._has_short_top(os.path.join(ann_dir, f.rsplit(".",1)[0]+".json"))]
-
-    def _has_short_top(self, ann_path):
-        if not os.path.exists(ann_path):
-            return False
-        ann = json.load(open(ann_path))
-        for key in ["item1","item2"]:
-            if key in ann and ann[key]["category_name"] == "short sleeve top":
-                return True
-        return False
+        self.transform = transform
+        self.img_files = sorted([f for f in os.listdir(img_dir) if f.endswith((".jpg", ".png"))])
 
     def __len__(self):
         return len(self.img_files)
@@ -57,112 +49,133 @@ class ShortTopKeypointDataset(Dataset):
         img_path = os.path.join(self.img_dir, img_file)
         ann_path = os.path.join(self.ann_dir, img_file.rsplit(".",1)[0]+".json")
 
-        img = Image.open(img_path).convert("RGB")
-        img = np.array(img)
+        image = Image.open(img_path).convert("RGB")
+        w, h = image.size
 
-        ann = json.load(open(ann_path))
+        with open(ann_path, "r") as f:
+            ann = json.load(f)
 
-        boxes = []
-        keypoints = []
+        # Only keep short sleeve tops
+        obj = ann.get("item1", {})
+        if obj.get("category_name") != "short sleeve top":
+            obj = ann.get("item2", {})
+            if obj.get("category_name") != "short sleeve top":
+                # skip this image
+                target = {}
+                target["boxes"] = torch.zeros((0,4), dtype=torch.float32)
+                target["labels"] = torch.zeros((0,), dtype=torch.int64)
+                target["masks"] = torch.zeros((0,h,w), dtype=torch.uint8)
+                target["keypoints"] = torch.zeros((0, NUM_KEYPOINTS, 3), dtype=torch.float32)
+                return F.to_tensor(image), target
 
-        for key in ["item1","item2"]:
-            if key not in ann:
-                continue
-            item = ann[key]
-            if item["category_name"] != "short sleeve top":
-                continue
-            boxes.append(item["bounding_box"])
+        # Bounding box
+        bbox = torch.tensor([obj["bounding_box"]], dtype=torch.float32)  # xyxy
+        labels = torch.tensor([1], dtype=torch.int64)  # single class
 
-            kps = item.get("landmarks", [])
-            kps_formatted = []
-            for i in range(0, len(kps), 3):
-                x, y, v = kps[i:i+3]
-                if x==0 and y==0:
-                    v = 0
-                kps_formatted.append([x,y,v])
-            if len(kps_formatted) < NUM_KEYPOINTS:
-                for _ in range(NUM_KEYPOINTS - len(kps_formatted)):
-                    kps_formatted.append([0,0,0])
-            keypoints.append(kps_formatted[:NUM_KEYPOINTS])
+        # Mask
+        segms = obj.get("segmentation", [])
+        masks = []
+        for seg in segms:
+            mask = Image.new("L", (w,h), 0)
+            poly = np.array(seg).reshape(-1,2)
+            from PIL import ImageDraw
+            ImageDraw.Draw(mask).polygon(list(map(tuple, poly)), outline=1, fill=1)
+            masks.append(np.array(mask, dtype=np.uint8))
+        if masks:
+            masks = np.stack(masks)
+        else:
+            masks = np.zeros((0,h,w), dtype=np.uint8)
+        masks = torch.as_tensor(masks, dtype=torch.uint8)
 
-        boxes = torch.as_tensor(boxes, dtype=torch.float32)
-        keypoints = torch.as_tensor(keypoints, dtype=torch.float32)
-        labels = torch.ones((len(boxes),), dtype=torch.int64)
+        # Keypoints
+        kps = obj.get("landmarks", [])
+        if len(kps) != NUM_KEYPOINTS*3:
+            # pad with zeros if missing
+            kps = (kps + [0]*NUM_KEYPOINTS*3)[:NUM_KEYPOINTS*3]
+        kps = torch.tensor(kps, dtype=torch.float32).view(-1, NUM_KEYPOINTS, 3)
 
-        target = {"boxes": boxes, "labels": labels, "keypoints": keypoints}
-        img = torch.as_tensor(img.transpose(2,0,1), dtype=torch.float32) / 255.0
-        return img, target
+        target = {
+            "boxes": bbox,
+            "labels": labels,
+            "masks": masks,
+            "keypoints": kps
+        }
 
-# =============================
-# DATA LOADERS
-# =============================
-def collate_fn(batch):
-    imgs, targets = zip(*batch)
-    return list(imgs), list(targets)
+        if self.transform:
+            image = self.transform(image)
 
-train_dataset = ShortTopKeypointDataset(TRAIN_IMG_DIR, TRAIN_ANN_DIR)
-val_dataset   = ShortTopKeypointDataset(VAL_IMG_DIR, VAL_ANN_DIR)
+        image = F.to_tensor(image)
+        return image, target
 
-train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True,
-                          num_workers=NUM_WORKERS, collate_fn=collate_fn)
-val_loader   = DataLoader(val_dataset, batch_size=1, shuffle=False,
-                          num_workers=NUM_WORKERS, collate_fn=collate_fn)
+# ================================
+# DATALOADERS
+# ================================
+train_dataset = DeepFashion2TopDataset(TRAIN_IMG_DIR, TRAIN_ANN_DIR)
+val_dataset = DeepFashion2TopDataset(VAL_IMG_DIR, VAL_ANN_DIR)
 
-# =============================
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=lambda x: tuple(zip(*x)))
+val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, collate_fn=lambda x: tuple(zip(*x)))
+
+# ================================
 # MODEL
-# =============================
-model = keypointrcnn_resnet50_fpn(weights="DEFAULT", num_keypoints=NUM_KEYPOINTS)
+# ================================
+model = keypointrcnn_resnet50_fpn(weights=None, num_keypoints=NUM_KEYPOINTS)
+in_features = model.roi_heads.box_predictor.cls_score.in_features
+model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes=2)
+in_features_mask = model.roi_heads.mask_predictor.conv5_mask.in_channels
+model.roi_heads.mask_predictor = MaskRCNNPredictor(in_features_mask, 256, 2)
+
 model.to(DEVICE)
 
-# =============================
+# ================================
 # OPTIMIZER
-# =============================
-optimizer = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=LR)
+# ================================
+params = [p for p in model.parameters() if p.requires_grad]
+optimizer = torch.optim.AdamW(params, lr=1e-4)
+lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
 
-# =============================
-# TRAIN LOOP
-# =============================
+# ================================
+# TRAINING LOOP
+# ================================
 writer = SummaryWriter(TENSORBOARD_DIR)
-global_step = 0
 
 for epoch in range(NUM_EPOCHS):
     model.train()
-    for imgs, targets in train_loader:
-        imgs = [img.to(DEVICE) for img in imgs]
-        targets = [{k:v.to(DEVICE) for k,v in t.items()} for t in targets]
+    running_loss = 0.0
+    for images, targets in train_loader:
+        images = list(img.to(DEVICE) for img in images)
+        targets = [{k: v.to(DEVICE) for k,v in t.items()} for t in targets]
 
-        loss_dict = model(imgs, targets)
+        loss_dict = model(images, targets)
         losses = sum(loss for loss in loss_dict.values())
 
         optimizer.zero_grad()
         losses.backward()
         optimizer.step()
 
-        if global_step % 20 == 0:
-            for k,v in loss_dict.items():
-                writer.add_scalar(f"train/{k}", v.item(), global_step)
-            writer.add_scalar("train/total_loss", losses.item(), global_step)
-            print(f"Epoch {epoch} Step {global_step} Loss: {losses.item():.4f}")
+        running_loss += losses.item()
 
-        if global_step % CHECKPOINT_EVERY == 0 and global_step > 0:
-            ckpt_path = os.path.join(OUTPUT_DIR, f"model_step_{global_step}.pth")
-            torch.save(model.state_dict(), ckpt_path)
-            print(f"💾 Saved checkpoint: {ckpt_path}")
+    lr_scheduler.step()
+    avg_loss = running_loss / len(train_loader)
+    print(f"Epoch {epoch+1}/{NUM_EPOCHS} - Loss: {avg_loss:.4f}")
+    writer.add_scalar("train/loss", avg_loss, epoch)
 
-        global_step += 1
+    # Optional: small validation pass
+    if epoch % 2 == 0:
+        model.eval()
+        val_loss = 0.0
+        with torch.no_grad():
+            for images, targets in val_loader:
+                images = list(img.to(DEVICE) for img in images)
+                targets = [{k: v.to(DEVICE) for k,v in t.items()} for t in targets]
+                loss_dict = model(images, targets)
+                val_loss += sum(loss for loss in loss_dict.values()).item()
+        val_loss /= len(val_loader)
+        print(f"Validation loss: {val_loss:.4f}")
+        writer.add_scalar("val/loss", val_loss, epoch)
 
-    # validation
-    model.eval()
-    val_losses = []
-    with torch.no_grad():
-        for imgs, targets in val_loader:
-            imgs = [img.to(DEVICE) for img in imgs]
-            targets = [{k:v.to(DEVICE) for k,v in t.items()} for t in targets]
-            loss_dict = model(imgs, targets)
-            val_losses.append(sum(loss for loss in loss_dict.values()).item())
-    avg_val_loss = np.mean(val_losses)
-    writer.add_scalar("val/loss", avg_val_loss, epoch)
-    print(f"Epoch {epoch} Validation Loss: {avg_val_loss:.4f}")
+    # Save checkpoint
+    torch.save(model.state_dict(), os.path.join(OUTPUT_DIR, f"model_epoch_{epoch+1}.pth"))
 
 writer.close()
 print("🎉 Training complete!")
