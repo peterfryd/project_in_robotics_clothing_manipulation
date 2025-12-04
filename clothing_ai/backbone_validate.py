@@ -106,12 +106,27 @@ def validate_model(ckpt_path):
     criterion = nn.MSELoss()
     val_loss = 0.0
     
+    total_images = len(val_loader.dataset)
+    processed = 0
+
     with torch.no_grad():
-        for imgs, landmarks in tqdm(val_loader, desc=f"Validating {os.path.basename(ckpt_path)}"):
+        pbar = tqdm(total=total_images, desc=f"Validating {os.path.basename(ckpt_path)}", unit='img')
+        for imgs, landmarks in val_loader:
             imgs, landmarks = imgs.to(device), landmarks.to(device)
             preds = model(imgs)
+            # accumulate batch loss (keeping the same averaging behaviour as before)
             val_loss += criterion(preds, landmarks).item()
-    
+
+            # update progress counters and progress bar (show images processed / remaining)
+            batch_count = imgs.size(0)
+            processed += batch_count
+            remaining = max(0, total_images - processed)
+            pbar.update(batch_count)
+            pbar.set_postfix({'processed': f"{processed}/{total_images}", 'left': remaining})
+
+        pbar.close()
+
+    # average over number of batches (same as original behaviour)
     val_loss /= len(val_loader)
     return val_loss
 
