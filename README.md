@@ -1,15 +1,12 @@
-# project_in_robotics_clothing_manipulation
-
-## Robot password
-eit2025
+# Project in Robotics - Clothing Manipulation
 
 ## Setup
-Follow these steps in order to get started with manipulating clothes!
+Follow these steps in order to get started with folding clothes!
 
 ### 1) Install ROS2
 Follow the guide for installing ROS2 Jazzy here [ROS2 Jazzy Install](https://docs.ros.org/en/jazzy/Installation/Alternatives/Ubuntu-Development-Setup.html).
 
-### 2) Clone and setup submodules
+### 2) Clone this repo and setup submodules
 Run the git clone command:
 
 ``` bash
@@ -31,121 +28,49 @@ source /opt/ros/jazzy/setup.bash && source project_in_robotics_clothing_manipula
 ### 4) Install ROS RealSense SDK library
 Follow the "Installation on Ubuntu" guide from this link: https://github.com/IntelRealSense/realsense-ros
 
-I specifically did:
+When mutliple options are available we this these specifically:
 * Step 2 - Option 2: Install librealsense2
 * step 3 - Option 2: Install from source
 
-OBS: You might need to update you kernel headers (atleast i did using linux kernel 6.14), or change kernel version.
+OBS: You might need to update you kernel headers (atleast we did using linux kernel 6.14), or change kernel version.
 
-### 5) Install ur_rtde c++ library and setup robot for remote control
-Install ur_rtde:
-``` bash
-sudo add-apt-repository ppa:sdurobotics/ur-rtde
-sudo apt-get update
-sudo apt install librtde librtde-dev
-```
-
-### 6) Build the src code
+### 5) Build the src code
 in the project root run:
 ``` bash
 python3 -m colcon build
-``` 
+```
+ros2 run system_integrator_pkg main2 "*"
 
-### 7) Connect to the Robot
-Connect your pc and the robot with an ethernet cable. Turn on the robot's control tablet ad go under settings -> system -> network. Set the network to have a static address:
+### 6) Connect to the Robot
+Connect your pc and the robot with an ethernet cable. On the robots control tablet go to settings -> system -> network. Set the network to have a static address:
 - IP Address: 192.168.1.100
 - Subnet Mask: 255.255.255.0
 
-On your pc, go to advanced network configuration, edit the Ethernet-network and go to IPV4-Settings.
-- Add the IP Address: 192.68.1.77
-- Add the netmask: 255.255.255.0
+On your pc, edit the Ethernet-network IPV4-Settings.
+- Set the IP Address: 192.168.1.104
+- Set the netmask: 255.255.255.0
 
 You can check that the communication is working by running:
 
 ``` bash
-ping 192.168.100.1
-``` 
+ping 192.168.1.100
+```
 
-Set the robot to "External Control" on the ur tablet.
+### 7) Prepare the robot programme
+On the robot, create a new program. This program will need to be running when folding so we recommend saving it.
+In that program add a single "script"-node, and add the line "interpreter_mode()".
 
-### 8) Setup Ucloud for model inference using Python Flask
-Setup Ucloud to have a personal SSH key, and add it to the Ucloud job once it starts.
-
-Clone the repository into a folder within UCloud.
-``` bash
-git clone https://github.com/peterfryd/project_in_robotics_clothing_manipulation.git
-``` 
-Create a virtual environment:
-``` bash
-python3 -m venv env
-``` 
-Source the environment:
-``` bash
-source env/bin/activate
-``` 
-Download the dependencies
-``` bash
-pip install -r requirements.txt
-``` 
 
 ## Run the programme
 
-### Option 1 (individual nodes)
-Start the robot arm controller:
+First start the robot programme created in the last section.
+
+Then run the launch file which start all neccesary services
 ``` bash
-ros2 run robot_controller_pkg arm_controller
-``` 
-(Optionally) Command the robot:
-``` bash
-ros2 service call /arm_srv custom_interfaces_pkg/srv/RobotCmd "{delta_position: [0.0, 0.0, 0.0], delta_orientation: [0.0, 0.0, 0.0], delta_gripper: 0}"
+ros2 launch system_integrator_pkg main_system2.launch.py
 ``` 
 
-And for the camera nodes:
+In another terminal run the main program and specify which fold type to use. Use "#" for square fold and "*" for star fold.
 ``` bash
-ros2 run realsense2_camera realsense2_camera_node
-``` 
-
-And for Inference with VLA:
-``` bash
-ros2 run vla_pkg inference
-``` 
-
-### Option 2 (Launch file)
-
-Alternative option (use launch file to start realsense, arm controller and vla inference):
-``` bash
-ros2 launch system_integrator_pkg main_system.launch.py
-``` 
-
-### Ucloud programme
-
-In Ucloud run the flask server:
-``` bash
-python3 ucloud/web_server.py
-``` 
-
-On the local machine allow SSH-Tunneling:
-``` bash
-ssh -L 5000:localhost:80 ucloud@ssh.cloud.sdu.dk -p <ID 4 NUMBERS>
-``` 
-
-
-### Main Programme
-
-Run the main programme:
-``` bash
-ros2 run system_integrator_pkg main "<command>"
-``` 
-
-### Create augmented dataset
-Make sure to cd into the clothing_ai folder first
-``` bash
-python augment_images.py   --input ./data/images   --output ./data/augmented_images   --annos ./data/annos   --output-annos ./data/augmented_annos   --num-augmentations 5
-```
-
-### Visialize augmented dataset
-Make sure to cd into the clothing_ai folder first
-``` bash
-### Visalize augmented dataset
-python visualize_annotations.py --images ./data/augmented_images --annos ./data/augmented_annos --num-samples 5
+ros2 run system_integrator_pkg main2 "*"
 ```
