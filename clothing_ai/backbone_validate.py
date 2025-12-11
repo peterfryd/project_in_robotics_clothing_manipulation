@@ -12,19 +12,19 @@ import matplotlib.pyplot as plt
 DATA_ROOT = "clothing_ai/data/deepFashion2"
 # Can be a single path (string) or a list of paths
 CKPT_PATH = "clothing_ai/checkpoints_backbone_resume/model_step_25000.pth"
-CKPT_PATH = [
-    "clothing_ai/checkpoints_backbone_resume/model_backbone_original.pth",
-    # # "clothing_ai/checkpoints_backbone_resume/model_step_16000.pth",
-    # # "clothing_ai/checkpoints_backbone_resume/model_step_17000.pth",
-    # # "clothing_ai/checkpoints_backbone_resume/model_step_18000.pth",
-    # # "clothing_ai/checkpoints_backbone_resume/model_step_19000.pth",
-    # # "clothing_ai/checkpoints_backbone_resume/model_step_20000.pth",
-    # # "clothing_ai/checkpoints_backbone_resume/model_step_21000.pth",
-    # # "clothing_ai/checkpoints_backbone_resume/model_step_22000.pth"
-    # # "clothing_ai/checkpoints_backbone_resume/model_step_23000.pth"
-    # "clothing_ai/checkpoints_backbone_resume/model_step_24000.pth"
-    "clothing_ai/checkpoints_backbone_resume/model_step_25000.pth"
-]
+# CKPT_PATH = [
+#     "clothing_ai/checkpoints_backbone_resume/model_backbone_original.pth",
+#     "clothing_ai/checkpoints_backbone_resume/model_step_16000.pth",
+#     "clothing_ai/checkpoints_backbone_resume/model_step_17000.pth",
+#     "clothing_ai/checkpoints_backbone_resume/model_step_18000.pth",
+#     "clothing_ai/checkpoints_backbone_resume/model_step_19000.pth",
+#     "clothing_ai/checkpoints_backbone_resume/model_step_20000.pth",
+#     "clothing_ai/checkpoints_backbone_resume/model_step_21000.pth",
+#     "clothing_ai/checkpoints_backbone_resume/model_step_22000.pth"
+#     "clothing_ai/checkpoints_backbone_resume/model_step_23000.pth"
+#     "clothing_ai/checkpoints_backbone_resume/model_step_24000.pth"
+#     "clothing_ai/checkpoints_backbone_resume/model_step_25000.pth"
+# ]
 IMG_SIZE = 224
 BATCH_SIZE = 16 
 

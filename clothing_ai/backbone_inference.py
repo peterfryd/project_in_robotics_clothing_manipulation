@@ -10,19 +10,23 @@ import glob
 
 # ==== CONFIG ====
 # Specify image path(s) here, or leave as None to use random images
-# Can be a single path (string), a list of paths, or None
 SINGLE_IMAGE_PATH = [
-    # "clothing_ai/data/deepFashion2/validation/images/000072.jpg",
+    "clothing_ai/data/our_flats/LsoUeFc-.jpeg"
     # "clothing_ai/data/deepFashion2/validation/images/032098.jpg",
     # "clothing_ai/data/deepFashion2/validation/images/032097.jpg",
 ]
-SINGLE_IMAGE_PATH = None
-DATA_DIR = "clothing_ai/data/dino"  # Used if SINGLE_IMAGE_PATH is None
-# DATA_DIR = "clothing_ai/data/deepFashion2/validation"
-CKPT_PATH = "clothing_ai/checkpoints/model.pth"
-NUM_IMAGES = 6  # Only used if SINGLE_IMAGE_PATH is None
-NUM_LANDMARKS = 25  # Number of landmarks to predict
 
+# Used if SINGLE_IMAGE_PATH is None
+DATA_DIR = "clothing_ai/data/deepFashion2/validation"
+
+# Only used if SINGLE_IMAGE_PATH is None
+NUM_IMAGES = 6  
+
+# Path to model
+CKPT_PATH = "clothing_ai/checkpoints/model.pth"
+
+
+NUM_LANDMARKS = 25  # Number of landmarks to predict
 IMG_SIZE = 224
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 NUM_LANDMARKS = 25  # Set this to the number your model predicts
