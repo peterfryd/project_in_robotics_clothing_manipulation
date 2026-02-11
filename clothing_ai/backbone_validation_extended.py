@@ -7,32 +7,38 @@ from PIL import Image
 import torch.nn as nn
 import random
 import glob
-import json 
-from tqdm import tqdm # <--- ADDED: Progress bar library
+import json
+from tqdm import tqdm
 
-# ==== CONFIG ====
+# ==== CONFIGURATION ==========================================================
 # Specify image path(s) here, or leave as None to use random images
 SINGLE_IMAGE_PATH = [
     # "clothing_ai/data/deepFashion2/validation/images/000072.jpg",
-    # "clothing_ai/data/deepFashion2/validation/images/032098.jpg",
-    # "clothing_ai/data/deepFashion2/validation/images/032097.jpg",
 ]
 
 # DATA_DIR should point to the parent directory containing 'images' and 'annotations' folders
 DATA_DIR = "clothing_ai/data/deepFashion2/validation"
 
-# Number of images to validate
-NUM_IMAGES = 0
-
 # Load model
 CKPT_PATH = "clothing_ai/checkpoints/model.pth"
 
+# Number of best and worst images to plot for diagnosis (N)
+N_SAMPLES_TO_PLOT = 10
+
+# Output directory where the visualized best/worst images (4N total) will be saved
+OUTPUT_DIR = "diagnostic_output" 
+
+# Number of image to val on. If not a positive number then use all
+NUM_IMAGES = 0
 
 IMG_SIZE = 224
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-NUM_LANDMARKS = 25  # Set this to the number your model predicts
+NUM_LANDMARKS = 25
 
-# ==== MODEL ====
+# Landmarks subset for specialized combined average (0-indexed)
+LANDMARK_SUBSET_INDICES = [16, 14, 9, 8, 1, 5, 22, 23]
+
+# ==== MODEL DEFINITION (Unchanged) ===========================================
 class LandmarkRegressor(nn.Module):
     def __init__(self, num_landmarks):
         super().__init__()
@@ -44,328 +50,366 @@ class LandmarkRegressor(nn.Module):
     def forward(self, x):
         return self.backbone(x).view(-1, self.num_landmarks, 3)
 
-# ==== GET IMAGE PATHS (MODIFIED FOR FULL VALIDATION RUN) ====
+# ==== INITIALIZATION (Unchanged) =============================================
 is_full_run = False
-if SINGLE_IMAGE_PATH is not None and len(SINGLE_IMAGE_PATH) > 0:
-    # Specified images
-    if isinstance(SINGLE_IMAGE_PATH, str):
-        selected_images = [SINGLE_IMAGE_PATH]
-    else:
-        selected_images = SINGLE_IMAGE_PATH
-    print(f"Running inference on {len(selected_images)} specified images")
-    
+if SINGLE_IMAGE_PATH and len(SINGLE_IMAGE_PATH) > 0:
+    selected_images = SINGLE_IMAGE_PATH if isinstance(SINGLE_IMAGE_PATH, list) else [SINGLE_IMAGE_PATH]
 else:
-    # Full or Sample run
     image_files = []
-    
-    # Try finding images in the expected structure: DATA_DIR/images/*.jpg
-    patterns = [
-        os.path.join(DATA_DIR, "images", "*.jpg"),
-        os.path.join(DATA_DIR, "images", "*.png"),
-    ]
-    
-    for pattern in patterns:
+    for pattern in [os.path.join(DATA_DIR, "images", "*.jpg"), os.path.join(DATA_DIR, "images", "*.png")]:
         image_files.extend(glob.glob(pattern))
-    
-    if not image_files:
-        raise FileNotFoundError(f"No images found in {DATA_DIR}. Tried patterns: {patterns}")
-    
+    if not image_files: raise FileNotFoundError(f"No images found in {DATA_DIR}.")
     if NUM_IMAGES is None or NUM_IMAGES <= 0:
-        # Run on the entire dataset
         selected_images = image_files
         is_full_run = True
-        print(f"Running inference on the entire dataset: {len(selected_images)} images.")
     else:
-        # Sample run
         selected_images = random.sample(image_files, min(NUM_IMAGES, len(image_files)))
-        print(f"Running inference on a sample of {len(selected_images)} random images.")
 
-# If no images were found or selected, the script will exit gracefully later
-if len(selected_images) == 0:
-    print("Error: No images were selected to process. Check DATA_DIR and file paths.")
-
-# ==== LOAD MODEL ====
-print(f"Using {NUM_LANDMARKS} landmarks for model.")
 model = LandmarkRegressor(NUM_LANDMARKS).to(DEVICE)
 checkpoint = torch.load(CKPT_PATH, map_location=DEVICE)
 model.load_state_dict(checkpoint["model_state_dict"])
 model.eval()
 
-# ==== TRANSFORM ====
 transform = transforms.Compose([
     transforms.Resize((IMG_SIZE, IMG_SIZE)),
     transforms.ToTensor(),
 ])
 
-# ==== INITIALIZE AGGREGATION ARRAYS FOR AVERAGES ACROSS ALL IMAGES (NME) ====
-total_landmark_NME = np.zeros(NUM_LANDMARKS)
-landmark_counts = np.zeros(NUM_LANDMARKS, dtype=int)
+all_landmark_NME_values = [[] for _ in range(NUM_LANDMARKS)]
 all_NME_combined = []
+subset_nme_combined = [] 
+all_landmark_224_pix_values = [[] for _ in range(NUM_LANDMARKS)]
+all_224_pix_combined = []
+subset_224_pix_combined = [] 
+image_nme_results = [] 
 
-# ==== PROCESS ALL IMAGES AND CALCULATE NME (NORMALIZED MEAN ERROR) ====
-results = []
+# ==== MAIN PROCESSING LOOP (Unchanged) =======================================
 images_processed_with_gt = 0
-
-# Use tqdm for progress bar if processing more than a handful of images
 image_iterator = tqdm(selected_images, desc="Processing Images") if len(selected_images) > 5 else selected_images
-
 
 for img_path in image_iterator:
     image_id = os.path.splitext(os.path.basename(img_path))[0]
-    
-    gt_landmarks = None
-    
-    # Determine the annotation path based on the DATA_DIR structure
     ann_path = os.path.join(DATA_DIR, "annotations", f"{image_id}.json")
     
+    gt_landmarks = None
     if os.path.exists(ann_path):
         try:
             with open(ann_path, "r") as f:
                 anno = json.load(f)
             gt_landmarks = np.array(anno["landmarks"], dtype=np.float32)
-            
-            # Print image info only if it's NOT a full run
-            if not is_full_run:
-                 print(f"\n--- Processing {image_id} ---")
-                 # Suppress this print for full run
-                 # print(f"Loaded annotations for {image_id} from: {ann_path}")
-        except Exception as e:
-            if not is_full_run:
-                print(f"Warning: Could not load annotations for {image_id}: {e}")
-            gt_landmarks = None # Ensure GT is reset on failure
+        except Exception:
+            gt_landmarks = None
     
-    # Skip processing if we couldn't load GT data for the purpose of evaluation
-    if gt_landmarks is None:
-        if not is_full_run:
-            print(f"Skipping {image_id}: No valid annotations found.")
-        continue
+    if gt_landmarks is None: continue
 
     images_processed_with_gt += 1
     
-    # Load image
     orig_pil = Image.open(img_path).convert("RGB")
     orig_w, orig_h = orig_pil.size
-    inp = transform(orig_pil).unsqueeze(0).to(DEVICE)
     
-    # Inference
+    inp = transform(orig_pil).unsqueeze(0).to(DEVICE)
+    orig_pil.close() 
+    
     with torch.no_grad():
         preds = model(inp).cpu().numpy().reshape(-1, 3)
     
-    # Convert normalized predictions (relative to 224x224) to pixel coordinates for VISUALIZATION
-    pred_landmarks_viz = preds.copy()
-    pred_landmarks_viz[:, 0] *= IMG_SIZE
-    pred_landmarks_viz[:, 1] *= IMG_SIZE
-    
-    # --- NME CALCULATION ---
-    
-    # 1. Determine Normalization Scale (Image Diagonal)
-    scale = np.sqrt(orig_w**2 + orig_h**2)
-    
-    # 2. Scale predictions to the ORIGINAL image size
-    pred_scaled_x = preds[:, 0] * orig_w
-    pred_scaled_y = preds[:, 1] * orig_h
-    
-    # 3. Get Ground Truth coordinates and visibility
-    gt_x = gt_landmarks[:, 0]
-    gt_y = gt_landmarks[:, 1]
     gt_v = gt_landmarks[:, 2]
+    scale_nme = np.sqrt(orig_w**2 + orig_h**2)
+    pred_scaled_x_orig = preds[:, 0] * orig_w
+    pred_scaled_y_orig = preds[:, 1] * orig_h
+    nme_values_for_image = []
 
-    # Calculate and aggregate NME
+    gt_scaled_x_224 = gt_landmarks[:, 0] * (IMG_SIZE / orig_w)
+    gt_scaled_y_224 = gt_landmarks[:, 1] * (IMG_SIZE / orig_h)
+    pred_scaled_x_224 = preds[:, 0] * IMG_SIZE 
+    pred_scaled_y_224 = preds[:, 1] * IMG_SIZE 
+
     for i in range(NUM_LANDMARKS):
-        # Only calculate NME for visible or occluded landmarks (gv != 0)
-        if gt_v[i] != 0:
-            pixel_distance = np.sqrt((pred_scaled_x[i] - gt_x[i])**2 + (pred_scaled_y[i] - gt_y[i])**2)
-            nme = pixel_distance / scale
+        if gt_v[i] == 2: 
+            pixel_distance_orig = np.sqrt((pred_scaled_x_orig[i] - gt_landmarks[i, 0])**2 + (pred_scaled_y_orig[i] - gt_landmarks[i, 1])**2)
+            nme = pixel_distance_orig / scale_nme
             
-            # --- AGGREGATION ---
-            total_landmark_NME[i] += nme
-            landmark_counts[i] += 1
+            all_landmark_NME_values[i].append(nme)
             all_NME_combined.append(nme)
+            if i in LANDMARK_SUBSET_INDICES: subset_nme_combined.append(nme)
+            nme_values_for_image.append(nme)
             
-            if not is_full_run:
-                # Suppress this print for full run
-                print(f"Landmark {i+1:2d} NME: {nme:.4f} (Raw Pixels: {pixel_distance:.2f})")
+            pix_distance_224 = np.sqrt(
+                (pred_scaled_x_224[i] - gt_scaled_x_224[i])**2 + 
+                (pred_scaled_y_224[i] - gt_scaled_y_224[i])**2
+            )
+
+            all_landmark_224_pix_values[i].append(pix_distance_224)
+            all_224_pix_combined.append(pix_distance_224)
+            if i in LANDMARK_SUBSET_INDICES: subset_224_pix_combined.append(pix_distance_224)
+
+    current_image_avg_nme = np.mean(nme_values_for_image) if nme_values_for_image else 0
     
-    if not is_full_run:
-        if len(all_NME_combined) > 0:
-            # Print image average only if it's NOT a full run
-            avg_nme_image = np.mean(all_NME_combined[-NUM_LANDMARKS:]) # approximate image avg
-            print(f"\nImage Average NME: {avg_nme_image:.4f}")
-
-    # Store results for visualization (only if it's a sample run)
-    if not is_full_run:
-        results.append({
-            'image_id': image_id,
-            'orig_pil': orig_pil,
-            'orig_w': orig_w,
-            'orig_h': orig_h,
-            'pred_landmarks': pred_landmarks_viz,
-            'gt_landmarks': gt_landmarks
-        })
+    image_nme_results.append({
+        'image_id': image_id,
+        'avg_nme': current_image_avg_nme,
+        'img_path': img_path,
+        'ann_path': ann_path,
+        'orig_w': orig_w,
+        'orig_h': orig_h,
+        'preds': preds, 
+    })
 
 
-# ==== FINAL AGGREGATE RESULTS PRINT (NME SUMMARY) ====
-print("\n" + "="*70)
-print("             AGGREGATE NORMALIZED MEAN ERROR (NME) SUMMARY")
-print(f"               Images Processed with GT: {images_processed_with_gt}")
-print("               Normalization Scale: Image Diagonal")
-print("="*70)
+# ==== FINAL AGGREGATE RESULTS PRINT BLOCK (RE-ADDED) ==============================
 
-if np.sum(landmark_counts) > 0:
-    print("\n--- Average NME per Landmark (Across All Images) ---")
-    
-    combined_valid_count = 0
+def print_aggregate_stats(metric_name, values_list, is_nme=False):
+    """Helper function for printing aggregated stats."""
+    if len(values_list) > 0:
+        avg = np.mean(values_list)
+        var = np.var(values_list)
+        
+        format_str = ".5f" if is_nme else ".2f"
+        unit_str = "" if is_nme else " px"
+        
+        print(f"COMBINED OVERALL AVERAGE {metric_name}: {avg:{format_str}}{unit_str}")
+        print(f"COMBINED OVERALL VARIANCE {metric_name}: {var:{format_str}}{unit_str} (Total Measurements: {len(values_list)})")
+    else:
+        print(f"No measurements collected for {metric_name}.")
+    print("-" * 70)
+
+
+print("\n" + "="*80)
+print("             AGGREGATE PERFORMANCE SUMMARY (ANALYSIS ONLY INCLUDES v=2 LANDMARKS)")
+print(f"                       Images Processed with GT: {images_processed_with_gt}")
+print("="*80)
+
+# --- 1. NME ANALYSIS (FULL SET) ---
+print("\n--- NME Analysis (Normalization Scale: Image Diagonal) ---")
+print("\n--- Mean and Variance per Landmark (NME) ---")
+
+if len(all_NME_combined) > 0:
     for i in range(NUM_LANDMARKS):
-        count = landmark_counts[i]
+        nme_list = all_landmark_NME_values[i]
+        count = len(nme_list)
         if count > 0:
-            avg_nme = total_landmark_NME[i] / count
-            print(f"Landmark {i+1:2d} Average NME: {avg_nme:.5f} (Count: {count})")
-            combined_valid_count += count
+            nme_mean = np.mean(nme_list)
+            nme_variance = np.var(nme_list)
+            print(f"Landmark {i+1:2d}: Mean={nme_mean:.5f}, Variance={nme_variance:.5f} (Count: {count})")
         else:
-            print(f"Landmark {i+1:2d} Average NME: N/A (Count: 0)")
+            print(f"Landmark {i+1:2d}: N/A (Count: 0)")
 
     print("\n" + "-"*70)
-    # Calculate and print the combined average across ALL valid NME measurements
-    if all_NME_combined:
-        overall_avg_nme = np.mean(all_NME_combined)
-        print(f"COMBINED OVERALL AVERAGE NME: {overall_avg_nme:.5f} (Total Measurements: {combined_valid_count})")
-    print("-" * 70)
+    print_aggregate_stats("NME (FULL SET)", all_NME_combined, is_nme=True)
 else:
-    print("No valid landmark measurements were collected to compute overall averages.")
-    # Exit if no results
-    exit()
+    print("No valid NME measurements were collected.")
 
+# --- 2. 224x224 PIXEL DISTANCE ANALYSIS (FULL SET) ---
+print("\n--- 224x224 Pixel Distance Analysis ---")
+print("\n--- Mean and Variance per Landmark (224 Pixels) ---")
 
-# ==== VISUALIZATION BLOCK (Only runs if it was NOT a full run) ====
-if is_full_run:
-    print("\nVisualization skipped because a full dataset run was executed.")
-    # Exit after printing aggregate results for full run
-    exit() 
+if len(all_224_pix_combined) > 0:
+    for i in range(NUM_LANDMARKS):
+        pix_list = all_landmark_224_pix_values[i]
+        count = len(pix_list)
+        if count > 0:
+            pix_mean = np.mean(pix_list)
+            pix_variance = np.var(pix_list)
+            print(f"Landmark {i+1:2d}: Mean={pix_mean:.2f} px, Variance={pix_variance:.2f} (Count: {count})")
+        else:
+            print(f"Landmark {i+1:2d}: N/A (Count: 0)")
 
-# --- If it's a sample run, proceed with visualization ---
-
-if len(results) == 0:
-    print("Exiting: No images were processed for visualization.")
-# Continue only if results are available
-elif len(results) == 1:
-    # Single image - show larger
-    DISPLAY_SIZE = IMG_SIZE * 3
-    scale_factor = DISPLAY_SIZE / IMG_SIZE 
-    
-    result = results[0]
-    resized_pil = result['orig_pil'].resize((DISPLAY_SIZE, DISPLAY_SIZE))
-    cv_img = cv2.cvtColor(np.array(resized_pil), cv2.COLOR_RGB2BGR)
-    
-    pred_landmarks = result['pred_landmarks']
-    gt_landmarks = result['gt_landmarks']
-    orig_w = result['orig_w']
-    orig_h = result['orig_h']
-    
-    # Draw ground truth annotations (GREEN)
-    if gt_landmarks is not None:
-        for lm_idx, (gx, gy, gv) in enumerate(gt_landmarks):
-            if gv == 0: continue
-            
-            gx_scaled = gx / orig_w * DISPLAY_SIZE
-            gy_scaled = gy / orig_h * DISPLAY_SIZE
-            gx_display = int(gx_scaled)
-            gy_display = int(gy_scaled)
-            
-            # Ground truth = Green (0, 255, 0)
-            cv2.circle(cv_img, (gx_display, gy_display), 5, (0, 255, 0), -1)
-            cv2.putText(cv_img, str(lm_idx + 1), (gx_display, gy_display - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
-    
-    # Draw predicted landmarks (BLUE CROSS)
-    for lm_idx, (px, py, pv) in enumerate(pred_landmarks):
-        px_display = int(px * scale_factor)
-        py_display = int(py * scale_factor)
-        
-        # Prediction = Blue (255, 0, 0)
-        cv2.drawMarker(
-            cv_img, 
-            (px_display, py_display), 
-            (255, 0, 0), # Blue color
-            markerType=cv2.MARKER_CROSS,
-            markerSize=10, 
-            thickness=2
-        )
-        
-        cv2.putText(cv_img, str(lm_idx + 1), (px_display, py_display - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
-    
-    cv2.putText(cv_img, result['image_id'], (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 255), 2, cv2.LINE_AA)
-    
-    cv2.namedWindow("Landmark Predictions", cv2.WINDOW_NORMAL)
-    cv2.resizeWindow("Landmark Predictions", DISPLAY_SIZE, DISPLAY_SIZE)
-    cv2.imshow("Landmark Predictions", cv_img)
-    
+    print("\n" + "-"*70)
+    print_aggregate_stats("224 PIXELS (FULL SET)", all_224_pix_combined, is_nme=False)
 else:
-    # Multiple images - show in grid
+    print("No valid 224x224 pixel distance measurements were collected.")
+
+
+# --- 3. SUBSET ANALYSIS ---
+subset_1_indexed = [i+1 for i in LANDMARK_SUBSET_INDICES]
+print("\n" + "="*80)
+print(f"    SUBSET ANALYSIS: Landmarks {subset_1_indexed} (Analysis Only Includes v=2)")
+print("="*80)
+
+# Individual Landmark NME Stats
+print("\n--- Subset NME (Individual Landmark Mean/Variance) ---")
+for i in LANDMARK_SUBSET_INDICES:
+    nme_list = all_landmark_NME_values[i]
+    count = len(nme_list)
+    
+    if count > 0:
+        nme_mean = np.mean(nme_list)
+        nme_variance = np.var(nme_list)
+        print(f"Landmark {i+1:2d}: Mean={nme_mean:.5f}, Variance={nme_variance:.5f} (Count: {count})")
+    else:
+        print(f"Landmark {i+1:2d}: N/A (Count: 0)")
+
+print("\n--- Subset NME (Combined) ---")
+print_aggregate_stats("NME (SUBSET)", subset_nme_combined, is_nme=True)
+
+
+# Individual Landmark 224 Pixel Stats
+print("\n--- Subset 224x224 Pixels (Individual Landmark Mean/Variance) ---")
+for i in LANDMARK_SUBSET_INDICES:
+    pix_list = all_landmark_224_pix_values[i]
+    count = len(pix_list)
+    
+    if count > 0:
+        pix_mean = np.mean(pix_list)
+        pix_variance = np.var(pix_list)
+        print(f"Landmark {i+1:2d}: Mean={pix_mean:.2f} px, Variance={pix_variance:.2f} (Count: {count})")
+    else:
+        print(f"Landmark {i+1:2d}: N/A (Count: 0)")
+
+print("\n--- Subset 224x224 Pixels (Combined) ---")
+print_aggregate_stats("224 PIXELS (SUBSET)", subset_224_pix_combined, is_nme=False)
+
+
+# ==== DIAGNOSTIC VISUALIZATION AND SAVING BLOCK (Unchanged) =====================
+
+if not os.path.exists(OUTPUT_DIR):
+    os.makedirs(OUTPUT_DIR)
+
+if images_processed_with_gt >= 4 * N_SAMPLES_TO_PLOT:
+    
+    N_TO_PRINT = 2 * N_SAMPLES_TO_PLOT 
+    plottable_results = [r for r in image_nme_results if r['avg_nme'] > 0]
+    plottable_results.sort(key=lambda x: x['avg_nme'])
+    best_samples_full = plottable_results[:N_TO_PRINT]
+    worst_samples_full = plottable_results[-N_TO_PRINT:][::-1]
+    best_samples_display = best_samples_full[:N_SAMPLES_TO_PLOT]
+    worst_samples_display = worst_samples_full[:N_SAMPLES_TO_PLOT]
+    combined_samples_display = best_samples_display + worst_samples_display
+    display_image_ids = {r['image_id'] for r in combined_samples_display}
+    combined_samples_save = best_samples_full + worst_samples_full
+
+    # --- Print block for file names is here (omitted for brevity) ---
+    print(f"\n--- Top {N_TO_PRINT} Best Images (Lowest NME) ---")
+    for i, result in enumerate(best_samples_full):
+        print(f"RANK {i+1:<3}: {result['image_id']}.jpg (Avg NME: {result['avg_nme']:.5f})")
+    print(f"\n--- Top {N_TO_PRINT} Worst Images (Highest NME) ---")
+    for i, result in enumerate(worst_samples_full):
+        print(f"RANK {i+1:<3}: {result['image_id']}.jpg (Avg NME: {result['avg_nme']:.5f}")
+    print(f"\n--- Printed {4 * N_SAMPLES_TO_PLOT} file names in total ---")
+    print("-" * 80)
+    # -----------------------------------------------------------------
+
     DISPLAY_SIZE = IMG_SIZE * 2
-    scale_factor = DISPLAY_SIZE / IMG_SIZE 
-
-    cols = 3
-    rows = (len(results) + cols - 1) // cols
-
+    cols = min(N_SAMPLES_TO_PLOT, len(combined_samples_display))
+    rows = 2
     grid_width = DISPLAY_SIZE * cols
     grid_height = DISPLAY_SIZE * rows
     grid_canvas = np.zeros((grid_height, grid_width, 3), dtype=np.uint8)
 
-    for idx, result in enumerate(results):
-        resized_pil = result['orig_pil'].resize((DISPLAY_SIZE, DISPLAY_SIZE))
-        cv_img = cv2.cvtColor(np.array(resized_pil), cv2.COLOR_RGB2BGR)
+    print(f"\nSaving {len(combined_samples_save)} visualized images to '{OUTPUT_DIR}'...")
+    
+    processed_images_for_grid = {} 
+    font = cv2.FONT_HERSHEY_SIMPLEX 
+    font_scale = 0.4
+    font_thickness = 1
+    outline_thickness = 3
+
+    for idx, result in enumerate(tqdm(combined_samples_save, desc="Loading, Visualizing, and Saving Images")):
         
-        pred_landmarks = result['pred_landmarks']
-        gt_landmarks = result['gt_landmarks']
+        with open(result["ann_path"], "r") as f:
+            anno = json.load(f)
+        gt_landmarks = np.array(anno["landmarks"], dtype=np.float32)
+
+        orig_pil = Image.open(result['img_path']).convert("RGB")
+        resized_pil = orig_pil.resize((DISPLAY_SIZE, DISPLAY_SIZE))
+        orig_pil.close() 
+        cv_img = cv2.cvtColor(np.array(resized_pil), cv2.COLOR_RGB2BGR)
+        resized_pil.close() 
+        
+        pred_landmarks = result['preds'].copy()
+        pred_landmarks[:, 0] *= DISPLAY_SIZE
+        pred_landmarks[:, 1] *= DISPLAY_SIZE
+
         orig_w = result['orig_w']
         orig_h = result['orig_h']
         
-        # Draw ground truth annotations (GREEN)
+        is_best = idx < N_TO_PRINT 
+        prefix = "best_"
+        if not is_best: prefix = "worst_"
+        
+        # --- Draw Ground Truth (Green Circle) ---
         if gt_landmarks is not None:
             for lm_idx, (gx, gy, gv) in enumerate(gt_landmarks):
-                if gv == 0: continue
+                
+                if gv != 2: continue 
                 
                 gx_scaled = gx / orig_w * DISPLAY_SIZE
                 gy_scaled = gy / orig_h * DISPLAY_SIZE
-                gx_display = int(gx_scaled)
-                gy_display = int(gy_scaled)
+                gt_x_disp = int(gx_scaled)
+                gt_y_disp = int(gy_scaled)
+
+                cv2.circle(cv_img, (gt_x_disp, gt_y_disp), 5, (0, 255, 0), -1)
                 
-                # Ground truth = Green (0, 255, 0)
-                cv2.circle(cv_img, (gx_display, gy_display), 5, (0, 255, 0), -1)
-                cv2.putText(cv_img, str(lm_idx + 1), (gx_display, gy_display - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1, cv2.LINE_AA)
+                # ADDED: Landmark number with Black outline and White text
+                text_pos = (gt_x_disp, gt_y_disp - 8)
+                
+                # Outline (Black, Thicker)
+                cv2.putText(cv_img, str(lm_idx + 1), text_pos, font, font_scale, (0, 0, 0), outline_thickness, cv2.LINE_AA)
+                # Text (White, Thinner)
+                cv2.putText(cv_img, str(lm_idx + 1), text_pos, font, font_scale, (255, 255, 255), font_thickness, cv2.LINE_AA)
+
+        # --- Draw Predicted Landmarks (Blue Cross / Yellow) ---
+        if gt_landmarks is not None:
+            for lm_idx, (px, py, pv) in enumerate(pred_landmarks):
+                
+                gv = gt_landmarks[lm_idx, 2] 
+                
+                if gv == 2:
+                    marker_color = (255, 0, 0) # Blue (BGR)
+                else:
+                    marker_color = (0, 255, 255) # Yellow (BGR)
+                    
+                px_display = int(px)
+                py_display = int(py)
+
+                cv2.drawMarker(
+                    cv_img, 
+                    (px_display, py_display), 
+                    marker_color,
+                    markerType=cv2.MARKER_CROSS,
+                    markerSize=10, 
+                    thickness=2
+                )
+                
+                # ADDED: Landmark number with Black outline and White text
+                text_pos = (px_display, py_display - 8)
+
+                # Outline (Black, Thicker)
+                cv2.putText(cv_img, str(lm_idx + 1), text_pos, font, font_scale, (0, 0, 0), outline_thickness, cv2.LINE_AA)
+                # Text (White, Thinner)
+                cv2.putText(cv_img, str(lm_idx + 1), text_pos, font, font_scale, (255, 255, 255), font_thickness, cv2.LINE_AA)
+
+        # --- SAVING THE IMAGE ---
+        save_filename = f"{prefix}{result['image_id']}.jpg"
+        save_path = os.path.join(OUTPUT_DIR, save_filename)
+        cv2.imwrite(save_path, cv_img)
         
-        # Draw predicted landmarks (BLUE CROSS)
-        for lm_idx, (px, py, pv) in enumerate(pred_landmarks):
-            px_display = int(px * scale_factor)
-            py_display = int(py * scale_factor)
-            
-            # Prediction = Blue (255, 0, 0)
-            cv2.drawMarker(
-                cv_img, 
-                (px_display, py_display), 
-                (255, 0, 0), # Blue color
-                markerType=cv2.MARKER_CROSS,
-                markerSize=10, 
-                thickness=2
-            )
-            
-            cv2.putText(cv_img, str(lm_idx + 1), (px_display, py_display - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1, cv2.LINE_AA)
-        
-        cv2.putText(cv_img, result['image_id'], (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2, cv2.LINE_AA)
-        
-        row = idx // cols
-        col = idx % cols
+        if result['image_id'] in display_image_ids:
+            processed_images_for_grid[result['image_id']] = cv_img
+
+    print(f"✅ Successfully saved {len(combined_samples_save)} visualized images with 'best_' / 'worst_' prefixes to '{OUTPUT_DIR}'.")
+    
+    # --- LOOP 2: CREATE AND DISPLAY THE GRID (Unchanged) ---
+    print(f"\nDisplaying Top {N_SAMPLES_TO_PLOT} BEST and Top {N_SAMPLES_TO_PLOT} WORST samples in a grid.")
+    
+    for idx, result in enumerate(combined_samples_display):
+        cv_img_processed = processed_images_for_grid.get(result['image_id'])
+        if cv_img_processed is None:
+            continue 
+
+        row = 0 if idx < N_SAMPLES_TO_PLOT else 1
+        col = idx % N_SAMPLES_TO_PLOT
         y_start = row * DISPLAY_SIZE
         y_end = y_start + DISPLAY_SIZE
         x_start = col * DISPLAY_SIZE
         x_end = x_start + DISPLAY_SIZE
         
-        grid_canvas[y_start:y_end, x_start:x_end] = cv_img
+        grid_canvas[y_start:y_end, x_start:x_end] = cv_img_processed
 
-    cv2.namedWindow("Landmark Predictions - All Images", cv2.WINDOW_NORMAL)
-    cv2.resizeWindow("Landmark Predictions - All Images", grid_width, grid_height)
-    cv2.imshow("Landmark Predictions - All Images", grid_canvas)
+    cv2.namedWindow(f"Diagnostic Visualization ({N_SAMPLES_TO_PLOT} Best & Worst)", cv2.WINDOW_NORMAL)
+    cv2.resizeWindow(f"Diagnostic Visualization ({N_SAMPLES_TO_PLOT} Best & Worst)", grid_width, grid_height)
+    cv2.imshow(f"Diagnostic Visualization ({N_SAMPLES_TO_PLOT} Best & Worst)", grid_canvas)
 
-if not is_full_run and len(results) > 0:
-    print(f"\nDisplaying {len(results)} image(s). Press any key to close.")
+    print(f"\nDisplaying {2 * N_SAMPLES_TO_PLOT} diagnostic image(s) grid. Press any key to close.")
     cv2.waitKey(0)
     cv2.destroyAllWindows()

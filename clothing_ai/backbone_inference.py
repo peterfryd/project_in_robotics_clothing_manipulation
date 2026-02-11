@@ -7,6 +7,7 @@ from PIL import Image
 import torch.nn as nn
 import random
 import glob
+import json
 
 # ==== CONFIG ====
 # Specify image path(s) here, or leave as None to use random images
@@ -97,10 +98,14 @@ for img_path in selected_images:
     
     # Try to load annotation if it exists
     gt_landmarks = None
-    if SINGLE_IMAGE_PATH is not None:
+    if SINGLE_IMAGE_PATH is not None and not isinstance(SINGLE_IMAGE_PATH, list):
         img_dir = os.path.dirname(img_path)
         parent_dir = os.path.dirname(img_dir)
         ann_path = os.path.join(parent_dir, "annotations", f"{image_id}.json")
+    elif SINGLE_IMAGE_PATH and isinstance(SINGLE_IMAGE_PATH, list):
+        # Handle case where list of single images might be from different directories
+        # Try to infer based on DATA_DIR structure if possible
+        ann_path = os.path.join(os.path.dirname(os.path.dirname(img_path)), "annotations", f"{image_id}.json")
     else:
         ann_path = os.path.join(DATA_DIR, "annotations", f"{image_id}.json")
     
@@ -138,11 +143,22 @@ for img_path in selected_images:
         'gt_landmarks': gt_landmarks
     })
 
-# ==== VISUALIZE ALL IMAGES IN A GRID ====
+# ==== VISUALIZE ALL IMAGES IN A GRID (MODIFIED WITH OUTLINE) ====
+
+# Define common font parameters
+font = cv2.FONT_HERSHEY_SIMPLEX
+outline_thickness = 3
+inner_thickness = 1
+outline_color = (0, 0, 0)       # Black
+text_color_white = (255, 255, 255) # White
+title_color_orig = (0, 255, 255) # Cyan/Yellow from original script
+
 if len(results) == 1:
     # Single image - show larger
     DISPLAY_SIZE = IMG_SIZE * 3
     scale_factor = DISPLAY_SIZE / IMG_SIZE
+    font_scale_lm = 0.6
+    font_scale_title = 1.0
     
     result = results[0]
     resized_pil = result['orig_pil'].resize((DISPLAY_SIZE, DISPLAY_SIZE))
@@ -164,48 +180,32 @@ if len(results) == 1:
             gy_scaled = gy / orig_h * DISPLAY_SIZE
             gx_display = int(gx_scaled)
             gy_display = int(gy_scaled)
+            text_pos = (gx_display, gy_display - 8)
             
             # Ground truth = green
             cv2.circle(cv_img, (gx_display, gy_display), 5, (0, 255, 0), -1)
-            cv2.putText(
-                cv_img,
-                str(lm_idx + 1),
-                (gx_display, gy_display - 8),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                (255, 255, 255),
-                2,
-                cv2.LINE_AA
-            )
+            
+            # Draw landmark number with outline (GT)
+            cv2.putText(cv_img, str(lm_idx + 1), text_pos, font, font_scale_lm, outline_color, outline_thickness, cv2.LINE_AA) # Outline
+            cv2.putText(cv_img, str(lm_idx + 1), text_pos, font, font_scale_lm, text_color_white, inner_thickness, cv2.LINE_AA) # Text
     
     # Draw predicted landmarks (blue)
     for lm_idx, (px, py, pv) in enumerate(pred_landmarks):
         px_display = int(px * scale_factor)
         py_display = int(py * scale_factor)
+        text_pos = (px_display, py_display - 8)
         
         # Prediction = blue
         cv2.circle(cv_img, (px_display, py_display), 5, (255, 0, 0), -1)
-        cv2.putText(
-            cv_img,
-            str(lm_idx + 1),
-            (px_display, py_display - 8),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            (255, 255, 255),
-            2,
-            cv2.LINE_AA
-        )
+        
+        # Draw landmark number with outline (Pred)
+        cv2.putText(cv_img, str(lm_idx + 1), text_pos, font, font_scale_lm, outline_color, outline_thickness, cv2.LINE_AA) # Outline
+        cv2.putText(cv_img, str(lm_idx + 1), text_pos, font, font_scale_lm, text_color_white, inner_thickness, cv2.LINE_AA) # Text
     
-    cv2.putText(
-        cv_img,
-        result['image_id'],
-        (10, 30),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        1.0,
-        (0, 255, 255),
-        2,
-        cv2.LINE_AA
-    )
+    # Draw Image ID/Title
+    title_pos = (10, 30)
+    cv2.putText(cv_img, result['image_id'], title_pos, font, font_scale_title, outline_color, outline_thickness, cv2.LINE_AA) # Outline
+    cv2.putText(cv_img, result['image_id'], title_pos, font, font_scale_title, title_color_orig, inner_thickness + 1, cv2.LINE_AA) # Text (use thickness 2 for prominence)
     
     cv2.namedWindow("Landmark Predictions", cv2.WINDOW_NORMAL)
     cv2.resizeWindow("Landmark Predictions", DISPLAY_SIZE, DISPLAY_SIZE)
@@ -215,6 +215,8 @@ else:
     # Multiple images - show in grid
     DISPLAY_SIZE = IMG_SIZE * 2
     scale_factor = DISPLAY_SIZE / IMG_SIZE
+    font_scale_lm = 0.4
+    font_scale_title = 0.7
 
     cols = 3
     rows = (len(results) + cols - 1) // cols
@@ -243,48 +245,33 @@ else:
                 gy_scaled = gy / orig_h * DISPLAY_SIZE
                 gx_display = int(gx_scaled)
                 gy_display = int(gy_scaled)
+                text_pos = (gx_display, gy_display - 8)
                 
                 # Ground truth = green
                 cv2.circle(cv_img, (gx_display, gy_display), 5, (0, 255, 0), -1)
-                cv2.putText(
-                    cv_img,
-                    str(lm_idx + 1),
-                    (gx_display, gy_display - 8),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.4,
-                    (255, 255, 255),
-                    1,
-                    cv2.LINE_AA
-                )
-        
+                
+                # Draw landmark number with outline (GT)
+                cv2.putText(cv_img, str(lm_idx + 1), text_pos, font, font_scale_lm, outline_color, outline_thickness, cv2.LINE_AA) # Outline
+                cv2.putText(cv_img, str(lm_idx + 1), text_pos, font, font_scale_lm, text_color_white, inner_thickness, cv2.LINE_AA) # Text
+
         # Draw predicted landmarks (blue)
         for lm_idx, (px, py, pv) in enumerate(pred_landmarks):
             px_display = int(px * scale_factor)
             py_display = int(py * scale_factor)
+            text_pos = (px_display, py_display - 8)
             
             # Prediction = blue
             cv2.circle(cv_img, (px_display, py_display), 5, (255, 0, 0), -1)
-            cv2.putText(
-                cv_img,
-                str(lm_idx + 1),
-                (px_display, py_display - 8),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.4,
-                (255, 255, 255),
-                1,
-                cv2.LINE_AA
-            )
+            
+            # Draw landmark number with outline (Pred)
+            cv2.putText(cv_img, str(lm_idx + 1), text_pos, font, font_scale_lm, outline_color, outline_thickness, cv2.LINE_AA) # Outline
+            cv2.putText(cv_img, str(lm_idx + 1), text_pos, font, font_scale_lm, text_color_white, inner_thickness, cv2.LINE_AA) # Text
+
         
-        cv2.putText(
-            cv_img,
-            result['image_id'],
-            (10, 25),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            (0, 255, 255),
-            2,
-            cv2.LINE_AA
-        )
+        # Draw Image ID/Title
+        title_pos = (10, 25)
+        cv2.putText(cv_img, result['image_id'], title_pos, font, font_scale_title, outline_color, outline_thickness, cv2.LINE_AA) # Outline
+        cv2.putText(cv_img, result['image_id'], title_pos, font, font_scale_title, title_color_orig, inner_thickness + 1, cv2.LINE_AA) # Text (use thickness 2 for prominence)
         
         row = idx // cols
         col = idx % cols
