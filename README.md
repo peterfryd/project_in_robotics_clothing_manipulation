@@ -37,6 +37,13 @@ The SIFT features of the newest image of the folding sequence are compared to th
 <img width="400" alt="image" src="https://github.com/user-attachments/assets/665aecb5-6f98-494b-a345-3255c930f96a" />
 
 
+## Experiment and results
+An experiment was conducted to test the successrate of the folding. This was done on two different T-shirts and two different folding sequences with 16 trials with each combination resulting in 64 total trials.
+This test resulted in an average successrate of 78.1% 
+<img width="400" alt="image" src="https://github.com/user-attachments/assets/05d03b60-cff7-4884-bfd7-0048be9d00bf" />
+
+A Fishers exact test showed no statistical difference in the successrate between the fold types or T-shirts.
+
 
 
 
