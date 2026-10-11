@@ -1,3 +1,4 @@
+<img width="200" height="355" alt="output" src="https://github.com/user-attachments/assets/943fe19d-00df-44bd-afb5-65d0da26cf8a" />
 # Autonomous T-Shirt Folding Using Landmark Detection and SIFT-Based Correction
 
 This project has implemented autonomous robot T-shirt folding on a UR5 robot arm using a novel landmark detection with SIFT-based correction algorithm.
@@ -45,8 +46,7 @@ This test resulted in an average successrate of 78.1%
 A Fishers exact test showed no statistical difference in the successrate between the fold types or T-shirts.
 
 ## Demonstration
-TODO: Add video
-
+<img width="200" height="355" alt="output" src="https://github.com/user-attachments/assets/4a2ac336-8faf-4de0-888d-96068ef5e214" />
 
 
 
