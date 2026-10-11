@@ -19,6 +19,20 @@ After finetuning, the landmark detector had an average NME of 0.022 across all t
 
 <img width="400" alt="image" src="https://github.com/user-attachments/assets/3831ef48-e53b-432f-8007-697808a2fc2e" />
 
+### Error sources
+There are multiple types of images in the dataset which the landmark detector has problems with, and because it has been trained on these, they likely result in worse performance and could be removed for future itereations of this project. 
+
+Below are some examples.
+
+<img width="400" alt="image" src="https://github.com/user-attachments/assets/505acc2b-cc13-47c2-8dc5-1d5eb47dc79a" />
+
+
+<img width="400" alt="image" src="https://github.com/user-attachments/assets/387988d1-3b24-495e-ad14-f440396299b8" />
+
+
+<img width="400" alt="image" src="https://github.com/user-attachments/assets/ac816323-c99f-479f-a4a8-5d22b865077d" />
+
+
 
 
 
