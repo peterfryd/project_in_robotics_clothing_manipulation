@@ -4,7 +4,7 @@ This project has implemented autonomous robot T-shirt folding on a UR5 robot arm
 
 OBS: Go to the end of the document for a setup guide.
 
-## Finding landmarks on clothes using AI 
+## Landmark detection of clothes using AI 
 
 As the base of the landmark detector the ResNet18 CNN is used, which has been pretrained on the ImageNet-1K dataset.
 
@@ -15,8 +15,7 @@ For finetuning the landmark detector the DeepFashion2 dataset is used. This data
 ### Performance
 After finetuning, the landmark detector had an average NME of 0.022 across all the landmarks.
 <img width="500" alt="image" src="https://github.com/user-attachments/assets/046192e9-9f07-428a-bd4d-a1f133227301" />
-
-
+<br/><br/>
 <img width="400" alt="image" src="https://github.com/user-attachments/assets/3831ef48-e53b-432f-8007-697808a2fc2e" />
 
 ### Error sources
@@ -25,12 +24,17 @@ There are multiple types of images in the dataset which the landmark detector ha
 Below are some examples.
 
 <img width="400" alt="image" src="https://github.com/user-attachments/assets/505acc2b-cc13-47c2-8dc5-1d5eb47dc79a" />
-
-
 <img width="400" alt="image" src="https://github.com/user-attachments/assets/387988d1-3b24-495e-ad14-f440396299b8" />
-
-
 <img width="400" alt="image" src="https://github.com/user-attachments/assets/ac816323-c99f-479f-a4a8-5d22b865077d" />
+
+
+## SIFT based landmark correction
+It is not enough to have the aforementioned landmark detector because it only works on clothing which is relatively stretched out. Therefore this implementation takes an image of the T-shirt when it is stretched out and then compares that image to every step of the folding sequence.
+
+The SIFT features of the newest image of the folding sequence are compared to the SIFT features of the image of the stretched out T-shirt to find the shared features. Then the N=12 nearest shared features to each landmark are used to transform the landmark. 
+<img width="400" alt="image" src="https://github.com/user-attachments/assets/784dbea9-21b7-48d8-98aa-8eefa935743a" />
+<br/><br/>
+<img width="400" alt="image" src="https://github.com/user-attachments/assets/665aecb5-6f98-494b-a345-3255c930f96a" />
 
 
 
