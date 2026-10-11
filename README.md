@@ -1,11 +1,23 @@
 # Autonomous T-Shirt Folding Using Landmark Detection and SIFT-Based Correction
 
-This project has implemented autonomous robot folding on a UR5 robot arm using a novel landmark detection with SIFT-based correction algorithm.
+This project has implemented autonomous robot T-shirt folding on a UR5 robot arm using a novel landmark detection with SIFT-based correction algorithm.
 
 OBS: Go to the end of the document for a setup guide.
 
+## Finding landmarks on clothes using AI 
+
+As the base of the landmark detector the ResNet18 CNN is used, which has been pretrained on the ImageNet-1K dataset.
+
+### Finetuning
+For finetuning the landmark detector the DeepFashion2 dataset is used. This dataset contains 801,000 annotated images of different types of clothes, including 82,000 images of T-shirts which will be used for the finetuning.
+<img width="800" alt="image" src="https://github.com/user-attachments/assets/4e9354d8-9d95-4e92-a0f6-20b36e5dcfd7" />
+
+### Performance
+After finetuning, the landmark detector had an average NME of 0.022 across all the landmarks.
+<img width="500" alt="image" src="https://github.com/user-attachments/assets/046192e9-9f07-428a-bd4d-a1f133227301" />
 
 
+<img width="400" alt="image" src="https://github.com/user-attachments/assets/3831ef48-e53b-432f-8007-697808a2fc2e" />
 
 
 
