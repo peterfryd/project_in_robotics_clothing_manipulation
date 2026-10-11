@@ -2,7 +2,7 @@
 
 This project has implemented autonomous robot T-shirt folding on a UR5 robot arm using a novel landmark detection with SIFT-based correction algorithm.
 
-OBS: Go to the end of the document for a setup guide.
+OBS: Go to the end of this readme for a setup guide.
 
 ## Landmark detection of clothes using AI 
 
